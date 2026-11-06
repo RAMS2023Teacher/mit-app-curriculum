@@ -6,6 +6,7 @@ import { GAMES_LESSONS } from './lessons-games'
 import { MEDIA_LESSONS } from './lessons-media'
 import { TOOLS_LESSONS } from './lessons-tools'
 import { LAUNCH_LESSONS } from './lessons-launch'
+import { SOLO_LESSONS } from './lessons-solo'
 import { TREE } from './tree'
 
 export const ALL_LESSONS: Lesson[] = [
@@ -16,6 +17,7 @@ export const ALL_LESSONS: Lesson[] = [
   ...MEDIA_LESSONS,
   ...TOOLS_LESSONS,
   ...LAUNCH_LESSONS,
+  ...SOLO_LESSONS,
 ]
 
 const byId = new Map(ALL_LESSONS.map((l) => [l.id, l]))
