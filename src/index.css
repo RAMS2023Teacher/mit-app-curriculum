@@ -896,6 +896,7 @@ table.list th {
   box-shadow: none;
 }
 .flip-inner {
+  display: block;
   position: relative;
   width: 100%;
   height: 100%;

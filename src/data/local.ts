@@ -16,7 +16,7 @@ interface DB {
 
 const KEY = 'appventure-demo-db'
 const SESSION_KEY = 'appventure-demo-user'
-const VERSION = 2
+const VERSION = 3
 
 const id = () => Math.random().toString(36).slice(2, 10)
 
@@ -371,6 +371,7 @@ function seed(): DB {
     pending?: string
     returned?: string
     quizOnly?: string[]
+    plan?: { lessonId: string; plan: Company['plans'] extends Record<string, infer P> | undefined ? P : never }
   }
   const seeds: Seed[] = [
     {
@@ -412,6 +413,28 @@ function seed(): DB {
       choices: {},
       done: ['core-hello', 'core-events'],
       pending: 'core-variables',
+    },
+    {
+      id: 'co-orbit',
+      name: 'Orbit Apps',
+      tagline: 'Tools that keep you on track',
+      logo: { shape: 'diamond', bg: '#073b4c', fg: '#ffffff', ring: '#11b39e', icon: '🛸', initials: 'OA', pattern: 'dots' },
+      people: [['s-maya', 'Maya'], ['s-leo', 'Leo']],
+      choices: { mini: 'mini-convert', path: 'tools-forms' },
+      done: ['core-hello', 'core-events', 'core-variables', 'core-conditionals', 'mini-convert', 'core-loops', 'core-lists', 'core-procedures', 'tools-forms', 'tools-tinydb', 'tools-sensors'],
+      plan: {
+        lessonId: 'tools-capstone',
+        plan: {
+          idea: 'Practice Log for the school band',
+          pitch: 'Our app lets band students log practice minutes so that the director can see who needs help.',
+          must: ['Add today\'s minutes with a date', 'See a list of past practice', 'Weekly total'],
+          nice: ['A goal for the week', 'A metronome sound'],
+          roles: { 's-maya': 'Builds the TinyDB saving and the list', 's-leo': 'Builds the weekly total and designs the screen' },
+          approved: false,
+          feedback: '',
+          updatedAt: Date.now() - 3 * 3_600_000,
+        },
+      },
     },
   ]
 
@@ -490,6 +513,7 @@ function seed(): DB {
       quiz(s.pending, now - day)
       addSub(s.pending, 'pending', now - day / 6)
     }
+    if (s.plan) company.plans = { [s.plan.lessonId]: s.plan.plan }
     if (s.returned) {
       quiz(s.returned, now - 2 * day)
       addSub(s.returned, 'returned', now - 2 * day, {

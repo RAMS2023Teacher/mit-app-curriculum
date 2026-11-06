@@ -64,8 +64,8 @@ export function StepView({ step, simple }: { step: LessonStep; simple: boolean }
       )}
       {step.check && (
         <div className="callout check">
-          <span className="t">✅ Test now</span>
-          {step.check}
+          <span className="t">{/^done when/i.test(step.check) ? '🏁 Done when…' : '✅ Test now'}</span>
+          {step.check.replace(/^(test now|done when)[:.…\s-]*/i, '').replace(/^./, (c) => c.toUpperCase())}
         </div>
       )}
       {step.stuck && step.stuck.length > 0 && (

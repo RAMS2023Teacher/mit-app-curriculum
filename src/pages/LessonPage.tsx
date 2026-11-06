@@ -552,7 +552,7 @@ function Rewards({ lesson, progress, me }: { lesson: Lesson; progress: LessonPro
   return (
     <div className="card">
       <h3>🎁 Rewards</h3>
-      {row(progress.quizPassed, '🧠', 'Everyone passes the quiz', lesson.xp.quiz)}
+      {row(progress.quizPassed, '🧠', 'Whole team passes quiz', lesson.xp.quiz)}
       <div className="row" style={{ gap: 6, margin: '0 0 6px 26px' }}>
         {progress.quizBy.map((m) => (
           <span key={m.uid} className={`chip ${m.passed ? 'good' : ''}`} title={m.excused ? 'Excused by teacher' : m.pct !== null ? `Best: ${m.pct}%` : 'Not taken yet'}>
@@ -560,7 +560,7 @@ function Rewards({ lesson, progress, me }: { lesson: Lesson; progress: LessonPro
           </span>
         ))}
       </div>
-      {row(progress.buildApproved, '🚀', lesson.individual ? 'Everyone\'s solo build approved' : 'Build approved', lesson.xp.build)}
+      {row(progress.buildApproved, '🚀', lesson.individual ? 'Each solo build approved' : 'Build approved', lesson.xp.build)}
       {lesson.individual && (
         <div className="row" style={{ gap: 6, margin: '0 0 6px 26px' }}>
           {progress.quizBy.map((m) => (
