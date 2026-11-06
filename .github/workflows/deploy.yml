@@ -1,8 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Only needed for the GitHub Pages + Firebase option (the Apps Script setup in
+# DEPLOY.md doesn't use it). To use it, turn on Settings → Pages → Source:
+# GitHub Actions, then run it from the Actions tab or switch back to `push`.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
