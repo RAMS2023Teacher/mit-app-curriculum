@@ -32,6 +32,9 @@ export function TeacherClass({ data }: { data: Data }) {
             {members?.length ?? 0} students · {companies?.length ?? 0} companies
           </div>
         </div>
+        <Link to={`/class/${c.id}/screen`} className="btn gold big">
+          📺 Class Screen
+        </Link>
         <div className="card flat" style={{ padding: '10px 16px' }}>
           <div className="small muted">Students join at {joinUrl.replace(/^https?:\/\//, '')} with code</div>
           <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: '1.6rem', letterSpacing: '0.2em', fontWeight: 700 }}>{c.joinCode}</div>

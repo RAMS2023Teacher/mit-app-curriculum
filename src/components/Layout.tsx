@@ -11,6 +11,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const loc = useLocation()
   const classId = loc.pathname.match(/^\/class\/([^/]+)/)?.[1]
+  // The projector Class Screen uses the whole display: no menu, no demo bar.
+  if (/^\/class\/[^/]+\/screen$/.test(loc.pathname)) return <main>{children}</main>
   return (
     <>
       <header className="topbar">

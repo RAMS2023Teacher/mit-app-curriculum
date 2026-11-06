@@ -51,5 +51,5 @@ export function useClassData(classId?: string) {
     return map
   }, [companies, submissions, approvals, pass])
   const loading = cls === undefined || members === undefined || companies === undefined || submissions === undefined || approvals === undefined
-  return { cls, members, companies, submissions, progress, isTeacher, myMember, myCompany, loading }
+  return { cls, members, companies, submissions, approvals, progress, isTeacher, myMember, myCompany, loading }
 }

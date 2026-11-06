@@ -13,10 +13,11 @@ Loops & Timers → Lists → Procedures
            🎮 Game Studio   Canvas & Sprites → Motion & Collisions → Score/Lives/Levels → Capstone game
            🎬 Media House   Camera & Images → Paint Pad → Sound Studio → Capstone media app
            🛠️ Tool Works    Smart Forms → TinyDB To-Do → Sensors, Maps & Screens → Capstone utility app
-🚀 Launch Day: polish, build the .apk, peer test, pitch
+🚀 Launch Day: polish, build the .apk, fresh-user test, pitch (live, video or written), reflect
+🧗 Solo Challenge: each student builds a new app alone from a written spec
 ```
 
-25 lessons in all. Each one has objectives, vocabulary, step-by-step Designer and
+26 lessons in all. Each one has objectives, vocabulary, step-by-step Designer and
 Blocks instructions with color-coded block snippets, a bonus challenge, a 4-question
 concept check, and teacher notes. All of it lives in `src/curriculum/`.
 
@@ -30,7 +31,18 @@ concept check, and teacher notes. All of it lives in `src/curriculum/`.
 | Builds | Upload the exported `.aia`. It's checked **in the browser** for the required components and blocks | Review queue: see the check results, write feedback, approve (awards XP) or return for changes |
 | Tree | Your logo sits on your current lesson, alongside every other company's | Counts show how many companies finished each lesson |
 
-A lesson is **complete** when the quiz is passed **and** the teacher approves the build.
+A lesson is **complete** when **every member** passes the quiz (or the teacher excuses them) **and** the teacher approves the build.
+
+### Supports built into every lesson
+- **One step at a time** with a "Test now" checkpoint, a "Stuck? Check this" box for the most common mistakes, and day markers for multi-period lessons.
+- **Fading scaffolds:** early lessons show full blocks; later ones use fill-in blanks (dashed slots) and words-only steps; every skill lesson ends with a required **Remix** described in words only, with hints revealed one at a time.
+- **Accommodations:** a 🔊 read-aloud button on every step and quiz question, a "Simpler words" toggle with a plain-language version of every step, sentence starters for written tasks, "If your device can't…" fallbacks, and teacher-provided starter project links for catch-up.
+- **Capstones:** idea cards that only use skills the path taught, a plan (max 3 MUST features, roles) the teacher approves, per-day sprint goals with "Done when…" checks, a stuck protocol, and a partner contribution log.
+- **Solo Challenge:** after Launch Day every student builds a small app alone from a written spec, assessed individually. This is the transfer task.
+- **MA DLCS alignment:** see the Standards page (teachers) and `src/curriculum/alignment.ts`.
+
+### 📺 Class Screen (for the projector)
+From a class page, tap **Class Screen**. It shows the clock, a work timer, today's mission and a question of the day (yours, or one picked from the lesson most teams are on, with Reveal), every company racing toward Launch Day, recent wins, and "Stuck? Ask an expert": teams that already finished the lesson others are on.
 
 ### App Inventor and phones
 

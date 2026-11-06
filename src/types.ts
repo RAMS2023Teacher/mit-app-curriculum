@@ -128,6 +128,16 @@ export interface ClassSettings {
   starters?: Record<string, string>
 }
 
+/** What the teacher shows on the projector Class Screen. */
+export interface ClassBoard {
+  goal: string
+  /** Custom question of the day. Empty = pick one automatically from the lessons. */
+  question: string
+  answer: string
+  /** When the work timer ends (ms since epoch), or null when no timer runs. */
+  timerEnd: number | null
+}
+
 export interface ClassRoom {
   id: string
   name: string
@@ -136,6 +146,7 @@ export interface ClassRoom {
   joinCode: string
   createdAt: number
   settings: ClassSettings
+  board?: ClassBoard
 }
 
 export interface Member {

@@ -1,4 +1,4 @@
-import type { Approval, CapstonePlan, ClassRoom, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
+import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
 
 export type Unsub = () => void
 
@@ -30,7 +30,7 @@ export interface Backend {
 
   createClass(name: string): Promise<ClassRoom>
   joinClass(code: string): Promise<ClassRoom>
-  updateClass(classId: string, patch: { name?: string; settings?: ClassSettings }): Promise<void>
+  updateClass(classId: string, patch: { name?: string; settings?: ClassSettings; board?: ClassBoard }): Promise<void>
   deleteClass(classId: string): Promise<void>
   watchClass(classId: string, cb: (c: ClassRoom | null) => void): Unsub
   watchMyClasses(cb: (c: ClassRoom[]) => void): Unsub
