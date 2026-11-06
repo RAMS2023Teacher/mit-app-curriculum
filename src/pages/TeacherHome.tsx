@@ -4,6 +4,7 @@ import { backend } from '../data'
 import { useWatch } from '../data/hooks'
 import type { ClassRoom } from '../types'
 import { useAction } from '../components/ui'
+import { CourseList } from './ClassroomTab'
 
 export function TeacherHome() {
   const classes = useWatch<ClassRoom[]>((cb) => backend.watchMyClasses(cb), [])
@@ -49,6 +50,44 @@ export function TeacherHome() {
         </form>
       </div>
       {classes?.length === 0 && <p className="muted">Create your first class, then share its join code with students.</p>}
+      {backend.classroom && <ImportFromClassroom />}
+    </div>
+  )
+}
+
+function ImportFromClassroom() {
+  const [open, setOpen] = useState(false)
+  const { error, run } = useAction()
+  const nav = useNavigate()
+  return (
+    <div className="card" style={{ marginTop: 20 }}>
+      <div className="spread">
+        <div>
+          <h3 style={{ margin: 0 }}>🎓 Import from Google Classroom</h3>
+          <p className="small muted" style={{ margin: '4px 0 0' }}>
+            Makes an AppVenture class from a Classroom course and adds its students (first name + last initial). Students skip the join code.
+          </p>
+        </div>
+        {!open && (
+          <button className="primary" onClick={() => setOpen(true)}>
+            Choose a course
+          </button>
+        )}
+      </div>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <CourseList
+            busyLabel="Import"
+            onPick={(c) =>
+              void run(async () => {
+                const r = await backend.classroom!.importCourse(c.id)
+                nav(`/class/${r.classId}`)
+              })
+            }
+          />
+        </div>
+      )}
+      {error && <p className="error">{error}</p>}
     </div>
   )
 }

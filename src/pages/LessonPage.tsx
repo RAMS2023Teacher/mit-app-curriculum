@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { backend } from '../data'
 import { useAuth, useClassData } from '../data/hooks'
-import type { AiaReport, ClassSettings, Company, Lesson, Submission } from '../types'
+import type { AiaReport, ClassRoom, ClassSettings, Company, Lesson, Submission } from '../types'
+import { assignmentFor } from './ClassroomTab'
 import { getLesson, TRACK_INFO } from '../curriculum'
 import { BRANCHES, nodeById } from '../curriculum/tree'
 import { analyzeAia, runChecks } from '../lib/aia'
@@ -200,6 +201,7 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
           </p>
           {isTeacher && <TeacherPanel lesson={lesson} />}
           {isTeacher && <StandardsPanel lessonId={lesson.id} />}
+          {isTeacher && classId && data.cls?.classroom && backend.classroom && <ClassroomAssign classId={classId} lesson={lesson} cls={data.cls} />}
           {isTeacher && classId && data.cls && <StarterEditor classId={classId} lessonId={lesson.id} settings={data.cls.settings} />}
           {isTeacher && classId && <CompaniesHere data={data} lessonId={lesson.id} classId={classId} />}
         </aside>
@@ -873,5 +875,25 @@ function StandardsPanel({ lessonId }: { lessonId: string }) {
         </Link>
       </div>
     </details>
+  )
+}
+
+function ClassroomAssign({ classId, lesson, cls }: { classId: string; lesson: Lesson; cls: ClassRoom }) {
+  const cw = cls.classroom?.coursework[lesson.id]
+  const { busy, error, run } = useAction()
+  return (
+    <div className="card">
+      <h3>🎓 Google Classroom</h3>
+      {cw ? (
+        <a className="btn small" href={cw.link} target="_blank" rel="noreferrer">
+          Open assignment ↗ ({cw.points} pts)
+        </a>
+      ) : (
+        <button className="small primary" disabled={busy} onClick={() => void run(() => backend.classroom!.createAssignments(classId, [assignmentFor(lesson, 100)], false))}>
+          Create assignment (draft, 100 pts)
+        </button>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </div>
   )
 }

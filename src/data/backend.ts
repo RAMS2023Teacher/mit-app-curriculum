@@ -1,4 +1,4 @@
-import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
+import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassroomCourse, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
 
 export type Unsub = () => void
 
@@ -55,6 +55,32 @@ export interface Backend {
   review(classId: string, submissionId: string, review: Review): Promise<void>
   /** Approved builds for every company in the class (drives XP, tree and leaderboard). */
   watchApprovals(classId: string, cb: (a: Approval[]) => void): Unsub
+
+  /** Google Classroom (only in the Google Apps Script version, and a pretend version in demo mode). */
+  classroom?: ClassroomApi
+}
+
+export interface NewAssignment {
+  lessonId: string
+  title: string
+  description: string
+  points: number
+}
+
+export interface GradeUpdate {
+  lessonId: string
+  uid: string
+  points: number
+}
+
+export interface ClassroomApi {
+  listCourses(): Promise<ClassroomCourse[]>
+  /** Create a new class from a course (classId omitted) or link an existing class, then import the roster. */
+  importCourse(courseId: string, classId?: string): Promise<{ classId: string; added: number; total: number }>
+  syncRoster(classId: string): Promise<{ added: number; total: number }>
+  createAssignments(classId: string, items: NewAssignment[], publish: boolean): Promise<{ lessonId: string; ok: boolean; error?: string }[]>
+  /** Write draft grades; the teacher returns them in Classroom. */
+  pushGrades(classId: string, grades: GradeUpdate[]): Promise<{ updated: number; unchanged: number; skipped: number; errors: string[] }>
 }
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'

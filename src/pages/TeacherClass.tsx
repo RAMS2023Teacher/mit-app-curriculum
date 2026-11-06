@@ -8,9 +8,11 @@ import { BRANCHES } from '../curriculum/tree'
 import { Tree, TreeLegend } from '../components/Tree'
 import { CompanyName, useAction } from '../components/ui'
 import { ReviewQueue } from './ReviewQueue'
+import { ClassroomTab } from './ClassroomTab'
+import { backend as dataBackend } from '../data'
 
 type Data = ReturnType<typeof useClassData>
-type Tab = 'overview' | 'review' | 'companies' | 'students' | 'settings'
+type Tab = 'overview' | 'review' | 'companies' | 'students' | 'classroom' | 'settings'
 
 export function TeacherClass({ data }: { data: Data }) {
   const { cls, companies, members, submissions, progress } = data
@@ -48,6 +50,7 @@ export function TeacherClass({ data }: { data: Data }) {
             ['review', '📥 Review'],
             ['companies', '🏢 Companies'],
             ['students', '🧑‍🎓 Students'],
+            ...(dataBackend.classroom ? [['classroom', '🎓 Classroom']] : []),
             ['settings', '⚙️ Settings'],
           ] as [Tab, string][]
         ).map(([t, label]) => (
@@ -173,6 +176,7 @@ export function TeacherClass({ data }: { data: Data }) {
         </div>
       )}
 
+      {tab === 'classroom' && <ClassroomTab data={data} />}
       {tab === 'settings' && <Settings data={data} />}
     </div>
   )

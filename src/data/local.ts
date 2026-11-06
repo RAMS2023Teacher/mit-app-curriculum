@@ -298,6 +298,62 @@ export function createLocalBackend(): DemoBackend {
       }, cb)
     },
 
+    // Pretend Google Classroom so the screens can be tried in the demo.
+    classroom: {
+      async listCourses() {
+        await tick()
+        return [
+          { id: 'gc-1', name: 'Digital Literacy & CS', section: 'Period 3' },
+          { id: 'gc-2', name: 'Digital Literacy & CS', section: 'Period 5' },
+        ]
+      },
+      async importCourse(courseId, classId) {
+        await tick()
+        const name = courseId === 'gc-2' ? 'Digital Literacy & CS · Period 5' : 'Digital Literacy & CS · Period 3'
+        const c = classId ? db.classes[classId] : await backend.createClass(name)
+        db.classes[c.id].classroom ??= { courseId, courseName: name, coursework: {} }
+        // Demo roster: the class's existing students "come from" Classroom; new courses get two pretend students.
+        let added = 0
+        if (!classId) {
+          for (const [uid, nm] of [['gc-s1', 'Riley T.'], ['gc-s2', 'Jamie L.']]) {
+            db.users[uid] ??= { uid, name: nm, role: 'student', classIds: [] }
+            if (!db.users[uid].classIds.includes(c.id)) db.users[uid].classIds.push(c.id)
+            db.members[c.id][uid] = { uid, name: nm, companyId: null, joinedAt: Date.now() }
+            added++
+          }
+        }
+        db.classes[c.id].classroom!.lastRosterSync = Date.now()
+        save()
+        return { classId: c.id, added, total: Object.keys(db.members[c.id]).length }
+      },
+      async syncRoster(classId) {
+        await tick()
+        db.classes[classId].classroom!.lastRosterSync = Date.now()
+        save()
+        return { added: 0, total: Object.keys(db.members[classId]).length }
+      },
+      async createAssignments(classId, items, publish) {
+        await tick()
+        const link = db.classes[classId].classroom!
+        const out = items.map((it) => {
+          if (link.coursework[it.lessonId]) return { lessonId: it.lessonId, ok: true, error: 'Already created' }
+          link.coursework[it.lessonId] = { id: id(), link: 'https://classroom.google.com/', points: it.points }
+          return { lessonId: it.lessonId, ok: true }
+        })
+        void publish
+        save()
+        return out
+      },
+      async pushGrades(classId, grades) {
+        await tick()
+        const link = db.classes[classId].classroom!
+        const known = grades.filter((g) => link.coursework[g.lessonId])
+        link.lastGradeSync = Date.now()
+        save()
+        return { updated: known.length, unchanged: 0, skipped: grades.length - known.length, errors: [] }
+      },
+    },
+
     listUsers() {
       return Object.values(db.users)
     },

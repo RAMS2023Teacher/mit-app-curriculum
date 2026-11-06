@@ -10,6 +10,9 @@
  *
  * What is stored about students: their school email (only in the "users" rows, which
  * only you can see), the display name they type, and their class progress. Nothing else.
+ *
+ * Google Classroom: to import classes and create assignments, add the service in the
+ * editor: Services (+) → Google Classroom API → Add. Then deploy a new version.
  */
 
 // Where the app's page is loaded from. Updates you push to GitHub show up automatically.
@@ -154,6 +157,10 @@ function isTeacherEmail_(email) {
   return extra.split(',').map(function (s) { return s.trim() }).indexOf(email) !== -1
 }
 
+function isOwner_(email) {
+  return email === (Session.getEffectiveUser().getEmail() || '').toLowerCase()
+}
+
 var CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 function code_(n) {
   var s = ''
@@ -180,7 +187,7 @@ function api(method, argsJson) {
   var args = JSON.parse(argsJson || '[]')
   var email = email_()
   var me = uidFor_(email)
-  var reads = { me: 1, snapshot: 1, myClasses: 1 }
+  var reads = { me: 1, snapshot: 1, myClasses: 1, crListCourses: 1 }
   if (!API_[method]) throw new Error('Unknown action: ' + method)
   if (reads[method]) return JSON.stringify(API_[method].apply(null, [Store_(), me, email].concat(args)))
   var lock = LockService.getScriptLock()
@@ -238,7 +245,7 @@ var API_ = {
         lock.releaseLock()
       }
     }
-    return { uid: u.uid, email: u.email, name: u.name, role: u.role, classIds: u.classIds, canTeach: isTeacherEmail_(email) }
+    return { uid: u.uid, email: u.email, name: u.name, role: u.role, classIds: u.classIds, canTeach: isTeacherEmail_(email), isOwner: isOwner_(email) }
   },
 
   setRole: function (db, me, email, role) {
@@ -522,4 +529,178 @@ var API_ = {
       db.set('approvals/' + cid + '/' + aid, a)
     } else if (wasApproved) db.del('approvals/' + cid + '/' + aid)
   },
+
+  // ------------------------------------------------------------ Google Classroom
+
+  crListCourses: function (db, me, email) {
+    classroomReady_(email)
+    var out = []
+    var token
+    do {
+      var res = Classroom.Courses.list({ teacherId: 'me', courseStates: ['ACTIVE'], pageSize: 100, pageToken: token })
+      ;(res.courses || []).forEach(function (c) {
+        out.push({ id: c.id, name: c.name, section: c.section || '' })
+      })
+      token = res.nextPageToken
+    } while (token)
+    return out
+  },
+
+  crImportCourse: function (db, me, email, courseId, classId) {
+    classroomReady_(email)
+    var course = Classroom.Courses.get(courseId)
+    var c
+    if (classId) {
+      assert_(isTeacherOf_(db, me, classId), 'Only the teacher can link this class.')
+      c = cls_(db, classId)
+    } else {
+      c = API_.createClass(db, me, email, course.name + (course.section ? ' · ' + course.section : ''))
+    }
+    c.classroom = c.classroom || { courseId: courseId, courseName: course.name, coursework: {} }
+    c.classroom.courseId = courseId
+    c.classroom.courseName = course.name
+    db.set('classes/' + c.id, c)
+    var r = importRoster_(db, c)
+    return { classId: c.id, added: r.added, total: r.total }
+  },
+
+  crSyncRoster: function (db, me, email, cid) {
+    classroomReady_(email)
+    assert_(isTeacherOf_(db, me, cid), 'Only the teacher can sync the roster.')
+    var c = cls_(db, cid)
+    assert_(c.classroom, 'This class is not linked to Google Classroom yet.')
+    return importRoster_(db, c)
+  },
+
+  crCreateAssignments: function (db, me, email, cid, items, publish) {
+    classroomReady_(email)
+    assert_(isTeacherOf_(db, me, cid), 'Only the teacher can create assignments.')
+    var c = cls_(db, cid)
+    assert_(c.classroom, 'Link this class to Google Classroom first.')
+    var courseId = c.classroom.courseId
+    if (!c.classroom.topicId) {
+      var topic = Classroom.Courses.Topics.create({ name: 'AppVenture' }, courseId)
+      c.classroom.topicId = topic.topicId
+    }
+    var base = ScriptApp.getService().getUrl()
+    var results = []
+    items.forEach(function (it) {
+      try {
+        var existing = c.classroom.coursework[it.lessonId]
+        if (existing) {
+          results.push({ lessonId: it.lessonId, ok: true, error: 'Already created' })
+          return
+        }
+        var cw = Classroom.Courses.CourseWork.create(
+          {
+            title: clean_(it.title, 200),
+            description: clean_(it.description, 4000),
+            materials: [{ link: { url: base + '#/class/' + cid + '/lesson/' + it.lessonId, title: 'Open in AppVenture' } }],
+            workType: 'ASSIGNMENT',
+            state: publish ? 'PUBLISHED' : 'DRAFT',
+            maxPoints: Number(it.points) || 100,
+            topicId: c.classroom.topicId,
+          },
+          courseId,
+        )
+        c.classroom.coursework[it.lessonId] = { id: cw.id, link: cw.alternateLink, points: Number(it.points) || 100 }
+        results.push({ lessonId: it.lessonId, ok: true })
+      } catch (e) {
+        results.push({ lessonId: it.lessonId, ok: false, error: String(e.message || e) })
+      }
+    })
+    db.set('classes/' + cid, c)
+    return results
+  },
+
+  crPushGrades: function (db, me, email, cid, grades) {
+    classroomReady_(email)
+    assert_(isTeacherOf_(db, me, cid), 'Only the teacher can send grades.')
+    var c = cls_(db, cid)
+    assert_(c.classroom, 'Link this class to Google Classroom first.')
+    var courseId = c.classroom.courseId
+    var out = { updated: 0, unchanged: 0, skipped: 0, errors: [] }
+    var byLesson = {}
+    grades.forEach(function (g) {
+      ;(byLesson[g.lessonId] = byLesson[g.lessonId] || []).push(g)
+    })
+    Object.keys(byLesson).forEach(function (lessonId) {
+      var cw = c.classroom.coursework[lessonId]
+      if (!cw) {
+        out.skipped += byLesson[lessonId].length
+        return
+      }
+      // Map Classroom user id → that student's submission for this assignment.
+      var subs = {}
+      var token
+      do {
+        var res = Classroom.Courses.CourseWork.StudentSubmissions.list(courseId, cw.id, { pageSize: 100, pageToken: token })
+        ;(res.studentSubmissions || []).forEach(function (s) {
+          subs[s.userId] = s
+        })
+        token = res.nextPageToken
+      } while (token)
+      byLesson[lessonId].forEach(function (g) {
+        var u = db.get('users/' + g.uid)
+        var sub = u && u.gid ? subs[u.gid] : null
+        if (!sub) {
+          out.skipped++
+          return
+        }
+        if (sub.draftGrade === g.points || sub.assignedGrade === g.points) {
+          out.unchanged++
+          return
+        }
+        try {
+          Classroom.Courses.CourseWork.StudentSubmissions.patch({ draftGrade: g.points }, courseId, cw.id, sub.id, { updateMask: 'draftGrade' })
+          out.updated++
+        } catch (e) {
+          out.errors.push((u.name || 'A student') + ': ' + String(e.message || e))
+        }
+      })
+    })
+    c.classroom.lastGradeSync = Date.now()
+    db.set('classes/' + cid, c)
+    return out
+  },
+}
+
+function classroomReady_(email) {
+  assert_(isOwner_(email), 'Only the account that owns this AppVenture script can use Google Classroom.')
+  assert_(typeof Classroom !== 'undefined', 'Turn on Google Classroom first: in the script editor, Services (+) → Google Classroom API → Add, then deploy a new version.')
+}
+
+/** Adds every student in the linked course to the class (first name + last initial). */
+function importRoster_(db, c) {
+  var added = 0
+  var total = 0
+  var token
+  do {
+    var res = Classroom.Courses.Students.list(c.classroom.courseId, { pageSize: 100, pageToken: token })
+    ;(res.students || []).forEach(function (st) {
+      var p = st.profile || {}
+      var mail = String(p.emailAddress || '').toLowerCase()
+      if (!mail) return
+      total++
+      var given = (p.name && p.name.givenName) || ''
+      var family = (p.name && p.name.familyName) || ''
+      var short = (given + (family ? ' ' + family.charAt(0) + '.' : '')).trim() || 'Student'
+      var uid = uidFor_(mail)
+      var u = db.get('users/' + uid)
+      if (!u) u = { uid: uid, email: mail, name: short, role: 'student', classIds: [] }
+      if (!u.name) u.name = short
+      if (!u.role) u.role = 'student'
+      u.gid = st.userId
+      if (u.classIds.indexOf(c.id) === -1) u.classIds.push(c.id)
+      db.set('users/' + uid, u)
+      if (!db.get('members/' + c.id + '/' + uid)) {
+        db.set('members/' + c.id + '/' + uid, { uid: uid, name: u.name, companyId: null, joinedAt: Date.now() })
+        added++
+      }
+    })
+    token = res.nextPageToken
+  } while (token)
+  c.classroom.lastRosterSync = Date.now()
+  db.set('classes/' + c.id, c)
+  return { added: added, total: total }
 }

@@ -12,8 +12,23 @@ interface GoogleScriptRun {
 }
 declare global {
   interface Window {
-    google?: { script: { run: GoogleScriptRun } }
+    google?: {
+      script: {
+        run: GoogleScriptRun
+        url?: { getLocation(cb: (loc: { hash: string }) => void): void }
+      }
+    }
   }
+}
+
+// Classroom assignment links point at …/exec#/class/<id>/lesson/<id>. The app runs inside
+// Google's frame, so read the outer page's hash once and jump there.
+try {
+  window.google?.script.url?.getLocation((loc) => {
+    if (loc.hash && loc.hash.startsWith('/') && !window.location.hash.slice(1).startsWith('/class')) window.location.hash = loc.hash
+  })
+} catch {
+  /* not inside Apps Script */
 }
 
 const POLL_MS = 20_000
@@ -24,7 +39,16 @@ function call<T>(method: string, ...args: unknown[]): Promise<T> {
     if (!run) return reject(new Error('AppVenture must be opened from its Google Apps Script link.'))
     run
       .withSuccessHandler((v) => resolve((v ? JSON.parse(v) : undefined) as T))
-      .withFailureHandler((e) => reject(new Error(String(e?.message ?? e).replace(/^Exception:\s*/, ''))))
+      .withFailureHandler((e) => {
+        const msg = String(e?.message ?? e).replace(/^Exception:\s*/, '')
+        reject(
+          new Error(
+            /^Unknown action/.test(msg)
+              ? 'This needs the newer server file. Paste the latest apps-script/Code.gs into your script, then Deploy → Manage deployments → Edit → New version (see DEPLOY.md).'
+              : msg,
+          ),
+        )
+      })
       .api(method, JSON.stringify(args))
   })
 }
@@ -175,5 +199,12 @@ export function createAppsScriptBackend(): Backend {
     },
     authProblem: () => authError,
     watchApprovals: (cid, cb) => watchSnap(cid, (s) => s.approvals ?? [], cb),
+    classroom: {
+      listCourses: () => call('crListCourses'),
+      importCourse: (courseId, classId) => write('crImportCourse', courseId, classId),
+      syncRoster: (cid) => write('crSyncRoster', cid),
+      createAssignments: (cid, items, publish) => write('crCreateAssignments', cid, items, publish),
+      pushGrades: (cid, grades) => write('crPushGrades', cid, grades),
+    },
   }
 }

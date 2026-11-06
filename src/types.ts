@@ -138,6 +138,23 @@ export interface ClassBoard {
   timerEnd: number | null
 }
 
+/** Link between an AppVenture class and a Google Classroom course. */
+export interface ClassroomLink {
+  courseId: string
+  courseName: string
+  topicId?: string
+  /** lessonId → the Classroom assignment created for it */
+  coursework: Record<string, { id: string; link: string; points: number }>
+  lastRosterSync?: number
+  lastGradeSync?: number
+}
+
+export interface ClassroomCourse {
+  id: string
+  name: string
+  section?: string
+}
+
 export interface ClassRoom {
   id: string
   name: string
@@ -147,6 +164,7 @@ export interface ClassRoom {
   createdAt: number
   settings: ClassSettings
   board?: ClassBoard
+  classroom?: ClassroomLink
 }
 
 export interface Member {

@@ -45,14 +45,46 @@ repository (`apps-script/index.html` on the `main` branch), so updates arrive on
 3. Students open the link (already signed in to Chrome with their school account), type their
    **first name and last initial**, choose **Student**, and enter the join code.
 
-## 5. Updating
+## 5. Connect Google Classroom (optional)
+
+This lets you import classes and students, create a Classroom assignment for each lesson,
+and send grades back to Classroom (and from there to PowerSchool).
+
+1. In the script editor, click **Services (+)** in the left sidebar, choose **Google Classroom API**, and click **Add**.
+2. Run **clearAppCache** once more and **Allow** the new Classroom permissions:
+   - see your courses and their rosters, including student emails (to match students to their sign-ins)
+   - create assignments and grade them (only assignments AppVenture creates)
+   - create the "AppVenture" topic
+3. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy.** The URL stays the same.
+
+Then in AppVenture:
+
+- **My classes → Import from Google Classroom:** choose a course. AppVenture makes the class and adds every
+  student as *first name + last initial*. Students open the link and land straight in the class, with no join code.
+- **Class → 🎓 Classroom tab:**
+  - **Sync roster** adds students who joined the course later.
+  - **Create assignments:** tick lessons (or "Select core lessons"), set points, and create. Each assignment has the
+    lesson summary and an **Open in AppVenture** link straight to that lesson, under an **AppVenture** topic. They're
+    saved as drafts unless you tick "Publish now". You can also create one from a lesson's teacher panel.
+  - **Send draft grades:** for every lesson with an assignment, each student gets
+    **30% × their own best quiz score + 70% when the build is approved (+10% extra credit for an approved bonus quest)**.
+    Students who haven't started are left blank. Grades go in as **drafts**: open the assignment in Classroom,
+    check them, and click **Return**. Returned grades go to PowerSchool through your normal Classroom sync.
+
+Good to know:
+- Classroom only lets AppVenture grade assignments AppVenture created. Assignments you made by hand can't receive grades.
+- Only the account that owns the script can use the Classroom features (co-teachers can't).
+- Imported students' emails are stored only in the teacher-only rows, the same as for students who joined by code.
+- To change the grade formula, edit `src/lib/grades.ts`.
+
+## 6. Updating
 
 - **App changes** (lessons, screens): once they are on the `main` branch on GitHub, they appear
   within 10 minutes. To see them right away, run **clearAppCache** in the script editor.
 - **Server changes** (`apps-script/Code.gs`): paste the new file, then **Deploy → Manage deployments →
   ✏️ Edit → Version: New version → Deploy**. The URL stays the same.
 
-## 6. Optional settings
+## 7. Optional settings
 
 In the script editor: **Project Settings (⚙) → Script properties → Add script property**
 
@@ -74,15 +106,18 @@ Don't edit it by hand. Delete it at the end of the year to remove all student da
 | Build submissions, notes, "who did what", your feedback | The student's company and you |
 | Uploaded `.aia` files | **Not stored.** They're checked in the student's browser; only the check results are saved |
 
-Not collected: addresses, phone numbers, birthdays, photos, grades, or anything from Google Classroom.
+Not collected: addresses, phone numbers, birthdays or photos. If you connect Google Classroom, AppVenture reads
+only course names and student names and emails (stored as first name + last initial). It writes draft grades only
+to assignments it created.
 Students are identified in class data by an anonymous ID. The ID-to-email link lives only in rows you can see.
 
 ## For district IT
 
 - **Hosting:** Google Apps Script web app owned by the teacher, restricted to the district domain.
 - **Data storage:** a Google Sheet in the teacher's school Drive. There are no other databases or vendors.
-- **Outbound requests from the script:** only `raw.githubusercontent.com`, to fetch the app's own HTML/JS
-  from the public repository. No student data is included in that request.
+- **Outbound requests from the script:** `raw.githubusercontent.com`, to fetch the app's own HTML/JS
+  from the public repository (no student data included), and, if the teacher connects it, the Google Classroom
+  API inside the district's own Google Workspace.
 - **Sites students' browsers load:** `script.google.com`, `*.googleusercontent.com` (Apps Script),
   `fonts.googleapis.com` / `fonts.gstatic.com` (fonts). MIT App Inventor (`ai2.appinventor.mit.edu`) and the
   MIT AI2 Companion app are used separately for building apps.
