@@ -1,3 +1,4 @@
+import { ask } from '../components/confirm'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { backend } from '../data'
@@ -174,9 +175,7 @@ function ChoosePath({ classId, company, lesson, branch }: { classId: string; com
         <button
           className="primary"
           disabled={busy}
-          onClick={() =>
-            confirm(`Choose "${lesson.title}" for ${company.name}? Talk with your partner first. Only your teacher can undo this.`) &&
-            run(() => backend.chooseBranch(classId, company.id, branch.id, lesson.id))
+          onClick={() => void ask(`Choose "${lesson.title}" for ${company.name}? Talk with your partner first. Only your teacher can undo this.`).then((ok) => { if (ok) void run(() => backend.chooseBranch(classId, company.id, branch.id, lesson.id)) })
           }
         >
           ✅ Choose {lesson.title}

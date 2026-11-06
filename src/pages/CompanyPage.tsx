@@ -1,3 +1,4 @@
+import { ask } from '../components/confirm'
 import { useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { backend } from '../data'
@@ -43,7 +44,7 @@ export function CompanyPage() {
           </p>
           <button
             className="small danger"
-            onClick={() => confirm(`Leave ${co.name}? ${co.memberIds.length === 1 ? 'You are the last member, so the company and its XP will be deleted.' : ''}`) && backend.leaveCompany(classId!, co.id)}
+            onClick={() => void ask(`Leave ${co.name}? ${co.memberIds.length === 1 ? 'You are the last member, so the company and its XP will be deleted.' : ''}`).then((ok) => { if (ok) void backend.leaveCompany(classId!, co.id) })}
           >
             Leave company
           </button>

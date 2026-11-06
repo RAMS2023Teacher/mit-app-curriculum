@@ -1,3 +1,4 @@
+import { ask } from '../components/confirm'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { backend } from '../data'
@@ -150,11 +151,11 @@ export function TeacherClass({ data }: { data: Data }) {
                     <td>{quizzes}</td>
                     <td style={{ textAlign: 'right' }}>
                       {co && (
-                        <button className="small" onClick={() => confirm(`Remove ${m.name} from ${co.name}?`) && backend.leaveCompany(c.id, co.id, m.uid)}>
+                        <button className="small" onClick={() => void ask(`Remove ${m.name} from ${co.name}?`).then((ok) => { if (ok) void backend.leaveCompany(c.id, co.id, m.uid) })}>
                           Remove from company
                         </button>
                       )}{' '}
-                      <button className="small danger" onClick={() => confirm(`Remove ${m.name} from the class?`) && backend.removeMember(c.id, m.uid)}>
+                      <button className="small danger" onClick={() => void ask(`Remove ${m.name} from the class?`).then((ok) => { if (ok) void backend.removeMember(c.id, m.uid) })}>
                         Remove from class
                       </button>
                     </td>
@@ -179,7 +180,7 @@ function ResetChoice({ classId, companyId, branchId, lessonId }: { classId: stri
       <button
         className="small ghost"
         title="Let this company choose again"
-        onClick={() => confirm('Reset this choice so the company can pick a different path?') && backend.chooseBranch(classId, companyId, branchId, null)}
+        onClick={() => void ask('Reset this choice so the company can pick a different path?').then((ok) => { if (ok) void backend.chooseBranch(classId, companyId, branchId, null) })}
       >
         ↺
       </button>
@@ -239,7 +240,7 @@ function Settings({ data }: { data: Data }) {
         <button
           className="danger"
           onClick={async () => {
-            if (confirm(`Delete "${c.name}"? Students will lose access to it.`)) {
+            if (await ask(`Delete "${c.name}"? Students will lose access to it.`, 'Delete class')) {
               await backend.deleteClass(c.id)
               nav('/teacher')
             }

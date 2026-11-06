@@ -1,3 +1,4 @@
+import { ask } from './confirm'
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { backend, demo } from '../data'
@@ -81,8 +82,8 @@ function DemoBar() {
       </select>
       <button
         className="small"
-        onClick={() => {
-          if (confirm('Reset all demo data back to the sample class?')) {
+        onClick={async () => {
+          if (await ask('Reset all demo data back to the sample class?', 'Reset demo')) {
             demo!.reset()
             nav('/')
           }
