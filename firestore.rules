@@ -1,0 +1,69 @@
+rules_version = '2';
+// Security rules for AppVenture. Deploy with:  firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function cls(cid) { return get(/databases/$(database)/documents/classes/$(cid)).data; }
+    function isTeacher(cid) { return signedIn() && cls(cid).teacherId == me(); }
+    function isMember(cid) { return signedIn() && exists(/databases/$(database)/documents/classes/$(cid)/members/$(me())); }
+    function inClass(cid) { return isTeacher(cid) || isMember(cid); }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    match /users/{uid} {
+      allow read, create: if signedIn() && me() == uid;
+      // Students may not edit someone else's profile.
+      allow update: if signedIn() && me() == uid;
+    }
+
+    match /classes/{cid} {
+      // Any signed-in user can look up a class (needed to join by code).
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.teacherId == me();
+      allow update, delete: if isTeacher(cid);
+
+      match /members/{uid} {
+        allow read: if inClass(cid);
+        allow create: if signedIn() && me() == uid && request.resource.data.companyId == null;
+        allow update: if isTeacher(cid) || (me() == uid && onlyChanges(['companyId', 'name']));
+        allow delete: if isTeacher(cid) || me() == uid;
+      }
+
+      match /companies/{coid} {
+        allow read: if inClass(cid);
+        allow create: if isMember(cid) && request.resource.data.memberIds == [me()];
+        allow update: if isTeacher(cid)
+          // members edit their own company
+          || (isMember(cid) && me() in resource.data.memberIds)
+          // joining: only add yourself, only touch the member fields, respect the size limit
+          || (isMember(cid)
+              && onlyChanges(['memberIds', 'memberNames'])
+              && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+              && me() in request.resource.data.memberIds
+              && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+              && request.resource.data.memberIds.size() <= cls(cid).settings.maxCompanySize);
+        allow delete: if isTeacher(cid) || (isMember(cid) && resource.data.memberIds == [me()]);
+      }
+
+      match /submissions/{sid} {
+        function myCompany(coid) {
+          return me() in get(/databases/$(database)/documents/classes/$(cid)/companies/$(coid)).data.memberIds;
+        }
+        allow read: if isTeacher(cid) || (isMember(cid) && myCompany(resource.data.companyId));
+        allow create: if isMember(cid)
+          && myCompany(request.resource.data.companyId)
+          && request.resource.data.submittedBy == me()
+          && request.resource.data.status == 'pending'
+          && request.resource.data.bonusApproved == false;
+        // Only the teacher reviews.
+        allow update, delete: if isTeacher(cid);
+      }
+
+      // Public record of approved builds (drives XP + tree). Teacher-only writes.
+      match /approvals/{aid} {
+        allow read: if inClass(cid);
+        allow write: if isTeacher(cid);
+      }
+    }
+  }
+}
