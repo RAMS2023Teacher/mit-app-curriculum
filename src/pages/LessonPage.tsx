@@ -2,27 +2,24 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { backend } from '../data'
 import { useAuth, useClassData } from '../data/hooks'
-import type { AiaReport, Company, Lesson, Submission } from '../types'
+import type { AiaReport, ClassSettings, Company, Lesson, Submission } from '../types'
 import { getLesson, TRACK_INFO } from '../curriculum'
 import { BRANCHES, nodeById } from '../curriculum/tree'
 import { analyzeAia, runChecks } from '../lib/aia'
 import { STATUS_LABEL, type LessonProgress } from '../lib/progress'
 import { Md } from '../components/Md'
-import { Blocks } from '../components/Blocks'
 import { AiaReportView } from '../components/AiaReportView'
 import { CompanyName, Loading, celebrate, timeAgo, useAction } from '../components/ui'
 import { APP_INVENTOR_URL } from '../components/Layout'
 import { ask } from '../components/confirm'
+import { DevicesBox, IdeasAndPlan, RemixView, StepView } from '../components/LessonParts'
+import { SpeakButton } from '../components/Speak'
+import { usePref } from '../lib/prefs'
 import { alignmentFor, DISCUSS } from '../curriculum/alignment'
 import { getStandard } from '../curriculum/standards'
 
 type Stage = 'brief' | 'build' | 'quiz' | 'submit'
 
-const EDITOR_TAG: Record<string, { label: string; color: string }> = {
-  designer: { label: '🎨 In the Designer', color: 'var(--core)' },
-  blocks: { label: '🧩 In the Blocks editor', color: 'var(--blk-event)' },
-  phone: { label: '📱 On your phone', color: 'var(--tools)' },
-}
 
 function useStepsDone(key: string) {
   const [done, setDone] = useState<number[]>(() => {
@@ -59,6 +56,7 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
   const company = classId ? data.myCompany : null
   const progress = company ? data.progress.get(company.id)?.lessons[lesson.id] : undefined
   const [stage, setStage] = useState<Stage | null>(null)
+  const [simple, setSimple] = usePref('simple', false)
   if (classId && data.loading) return <Loading />
 
   const isTeacher = classId ? data.isTeacher : user?.role === 'teacher'
@@ -70,13 +68,16 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
   const canAct = !!company && !!progress && !['locked', 'not-taken'].includes(progress.status) && !needsChoice
   const prereqTitles = node?.prereqs.map((p) => getLesson(p)?.title).filter(Boolean) ?? []
   const totalXp = lesson.xp.quiz + lesson.xp.build
+  const myQuiz = progress?.quizBy.find((m) => m.uid === user?.uid)
+  const buildCount = lesson.steps.length + (lesson.remix ? 1 : 0)
+  const starter = data.cls?.settings.starters?.[lesson.id]
 
   const current: Stage =
-    stage ?? (progress?.quizPassed ? 'submit' : steps.done.length > 0 ? 'build' : 'brief')
+    stage ?? (myQuiz?.passed ? 'submit' : steps.done.length > 0 ? 'build' : 'brief')
   const stageDone: Record<Stage, boolean> = {
-    brief: steps.done.length > 0 || !!progress?.quizPassed,
-    build: steps.done.length >= lesson.steps.length,
-    quiz: !!progress?.quizPassed,
+    brief: steps.done.length > 0 || !!myQuiz?.passed,
+    build: steps.done.length >= buildCount,
+    quiz: !!myQuiz?.passed,
     submit: !!progress?.buildApproved,
   }
   const go = (s: Stage) => {
@@ -122,12 +123,23 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
       )}
 
       <StagePath current={current} done={stageDone} onPick={go} />
+      <div className="toolbar">
+        <button className="small" aria-pressed={simple} onClick={() => setSimple(!simple)}>
+          🅰 Simpler words {simple ? 'on' : 'off'}
+        </button>
+      </div>
 
       <div className="lesson-layout">
         <div className="stack">
-          {current === 'brief' && <Brief lesson={lesson} onStart={() => go('build')} />}
+          {current === 'brief' && (
+            <>
+              <Brief lesson={lesson} onStart={() => go('build')} />
+              {lesson.devices && lesson.devices.length > 0 && <DevicesBox devices={lesson.devices} />}
+              {lesson.ideas && lesson.ideas.length > 0 && <IdeasAndPlan lesson={lesson} company={company ?? null} classId={classId} />}
+            </>
+          )}
           {current === 'build' && (
-            <StepPlayer lesson={lesson} done={steps.done} onDone={steps.mark} onFinish={() => go('quiz')} />
+            <StepPlayer lesson={lesson} simple={simple} done={steps.done} onDone={steps.mark} onFinish={() => go('quiz')} />
           )}
           {current === 'quiz' && (
             <Quiz
@@ -135,12 +147,12 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
               disabled={!!company && !canAct}
               practice={!company}
               passPercent={data.cls?.settings.quizPassPercent ?? 70}
-              best={progress?.quizBest ?? null}
+              best={myQuiz?.pct ?? null}
               onNext={() => go('submit')}
               onDone={
                 company && canAct
                   ? (score, total) =>
-                      backend.recordQuiz(classId!, company.id, lesson.id, { score, total, by: user!.uid, byName: user!.name, at: Date.now() })
+                      backend.recordQuiz(classId!, company.id, lesson.id, user!.uid, { score, total, by: user!.uid, byName: user!.name, at: Date.now() })
                   : undefined
               }
             />
@@ -163,7 +175,8 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
                   lesson={lesson}
                   progress={progress}
                   disabled={!canAct}
-                  submissions={(data.submissions ?? []).filter((s) => s.lessonId === lesson.id)}
+                  me={user!.uid}
+                  submissions={(data.submissions ?? []).filter((s) => s.lessonId === lesson.id && (!lesson.individual || s.submittedBy === user?.uid))}
                 />
               ) : (
                 <div className="card center muted">Students upload their App Inventor project here.</div>
@@ -176,12 +189,18 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
           <a className="btn go big" href={APP_INVENTOR_URL} target="_blank" rel="noreferrer" style={{ width: '100%', justifyContent: 'center' }}>
             🧰 Open App Inventor
           </a>
-          {company && progress && <Rewards lesson={lesson} progress={progress} />}
+          {starter && (
+            <a className="btn" href={starter} target="_blank" rel="noreferrer" style={{ width: '100%', justifyContent: 'center' }}>
+              📦 Starter project
+            </a>
+          )}
+          {company && progress && <Rewards lesson={lesson} progress={progress} me={user?.uid} />}
           <p className="center small" style={{ margin: 0 }}>
             <Link to="/phone">📱 Phone won't connect?</Link>
           </p>
           {isTeacher && <TeacherPanel lesson={lesson} />}
           {isTeacher && <StandardsPanel lessonId={lesson.id} />}
+          {isTeacher && classId && data.cls && <StarterEditor classId={classId} lessonId={lesson.id} settings={data.cls.settings} />}
           {isTeacher && classId && <CompaniesHere data={data} lessonId={lesson.id} classId={classId} />}
         </aside>
       </div>
@@ -279,36 +298,43 @@ function Brief({ lesson, onStart }: { lesson: Lesson; onStart: () => void }) {
   )
 }
 
-function StepPlayer({ lesson, done, onDone, onFinish }: { lesson: Lesson; done: number[]; onDone: (i: number) => void; onFinish: () => void }) {
-  const firstOpen = lesson.steps.findIndex((_, i) => !done.includes(i))
+function StepPlayer({
+  lesson,
+  simple,
+  done,
+  onDone,
+  onFinish,
+}: {
+  lesson: Lesson
+  simple: boolean
+  done: number[]
+  onDone: (i: number) => void
+  onFinish: () => void
+}) {
+  const count = lesson.steps.length + (lesson.remix ? 1 : 0)
+  const firstOpen = Array.from({ length: count }, (_, k) => k).findIndex((k) => !done.includes(k))
   const [i, setI] = useState(firstOpen === -1 ? 0 : firstOpen)
-  const s = lesson.steps[i]
-  const last = i === lesson.steps.length - 1
+  const isRemix = !!lesson.remix && i === lesson.steps.length
+  const last = i === count - 1
   return (
     <div className="card">
       <div className="spread" style={{ marginBottom: 14 }}>
         <div className="step-dots" aria-label="Steps">
-          {lesson.steps.map((_, k) => (
-            <button key={k} className={`${k === i ? 'on' : ''} ${done.includes(k) && k !== i ? 'done' : ''}`} onClick={() => setI(k)} aria-label={`Step ${k + 1}`}>
-              {done.includes(k) && k !== i ? '✔' : k + 1}
-            </button>
+          {Array.from({ length: count }, (_, k) => (
+            <span key={k} style={{ display: 'contents' }}>
+              {k > 0 && lesson.steps[k]?.day && <span className="day-sep" aria-hidden="true" title={`Day ${lesson.steps[k].day}`} />}
+              <button className={`${k === i ? 'on' : ''} ${done.includes(k) && k !== i ? 'done' : ''}`} onClick={() => setI(k)} aria-label={k === lesson.steps.length ? 'Remix' : `Step ${k + 1}`}>
+                {done.includes(k) && k !== i ? '✔' : k === lesson.steps.length ? '🎛' : k + 1}
+              </button>
+            </span>
           ))}
         </div>
         <span className="small muted" style={{ fontWeight: 900 }}>
-          Step {i + 1} of {lesson.steps.length}
+          {isRemix ? 'Remix' : `Step ${i + 1} of ${lesson.steps.length}`}
         </span>
       </div>
       <div key={i} className="pop">
-        {s.editor && (
-          <div className="editor-tag" style={{ color: EDITOR_TAG[s.editor].color }}>
-            {EDITOR_TAG[s.editor].label}
-          </div>
-        )}
-        <h2>{s.title}</h2>
-        <div className="mission-text">
-          <Md text={s.body} />
-        </div>
-        {s.blocks && <Blocks lines={s.blocks} />}
+        {isRemix ? <RemixView remix={lesson.remix!} /> : <StepView step={lesson.steps[i]} simple={simple} />}
       </div>
       <div className="spread" style={{ marginTop: 16 }}>
         <button onClick={() => setI(Math.max(0, i - 1))} disabled={i === 0}>
@@ -322,7 +348,7 @@ function StepPlayer({ lesson, done, onDone, onFinish }: { lesson: Lesson; done: 
             else setI(i + 1)
           }}
         >
-          {last ? 'Done! Quiz time 🧠' : 'Got it! Next ▶'}
+          {last ? 'Done! Quiz time 🧠' : i === lesson.steps.length - 1 && lesson.remix ? 'Got it! Remix ▶' : 'Got it! Next ▶'}
         </button>
       </div>
     </div>
@@ -457,7 +483,10 @@ function Quiz({
         </span>
       </div>
       <div key={q} className="pop">
-        <h2 style={{ fontSize: '1.45rem' }}>{item.q}</h2>
+        <div className="spread" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+          <h2 style={{ fontSize: '1.45rem' }}>{item.q}</h2>
+          <SpeakButton text={`${item.q} ${order[q].map((j, pos) => `${String.fromCharCode(65 + pos)}: ${item.options[j]}.`).join(' ')}`} />
+        </div>
         {order[q].map((j, pos) => {
           const cls = answered ? (j === item.answer ? 'right' : picked === j ? 'wrong' : '') : ''
           return (
@@ -511,7 +540,7 @@ function BonusQuest({ lesson }: { lesson: Lesson }) {
   )
 }
 
-function Rewards({ lesson, progress }: { lesson: Lesson; progress: LessonProgress }) {
+function Rewards({ lesson, progress, me }: { lesson: Lesson; progress: LessonProgress; me?: string }) {
   const row = (ok: boolean, icon: string, label: string, xp: number) => (
     <div className="spread" style={{ padding: '6px 0', fontWeight: 800 }}>
       <span>
@@ -523,8 +552,24 @@ function Rewards({ lesson, progress }: { lesson: Lesson; progress: LessonProgres
   return (
     <div className="card">
       <h3>🎁 Rewards</h3>
-      {row(progress.quizPassed, '🧠', 'Pass the quiz', lesson.xp.quiz)}
-      {row(progress.buildApproved, '🚀', 'Build approved', lesson.xp.build)}
+      {row(progress.quizPassed, '🧠', 'Everyone passes the quiz', lesson.xp.quiz)}
+      <div className="row" style={{ gap: 6, margin: '0 0 6px 26px' }}>
+        {progress.quizBy.map((m) => (
+          <span key={m.uid} className={`chip ${m.passed ? 'good' : ''}`} title={m.excused ? 'Excused by teacher' : m.pct !== null ? `Best: ${m.pct}%` : 'Not taken yet'}>
+            {m.passed ? '✔' : '…'} {m.uid === me ? 'You' : m.name}
+          </span>
+        ))}
+      </div>
+      {row(progress.buildApproved, '🚀', lesson.individual ? 'Everyone\'s solo build approved' : 'Build approved', lesson.xp.build)}
+      {lesson.individual && (
+        <div className="row" style={{ gap: 6, margin: '0 0 6px 26px' }}>
+          {progress.quizBy.map((m) => (
+            <span key={m.uid} className={`chip ${progress.soloApproved.includes(m.uid) ? 'good' : ''}`}>
+              {progress.soloApproved.includes(m.uid) ? '✔' : '…'} {m.uid === me ? 'You' : m.name}
+            </span>
+          ))}
+        </div>
+      )}
       {row(progress.bonusApproved, '⭐', 'Bonus quest', lesson.xp.bonus)}
       <div className="spread" style={{ borderTop: '2px solid var(--line)', marginTop: 6, paddingTop: 8 }}>
         <strong>{STATUS_LABEL[progress.status]}</strong>
@@ -541,6 +586,7 @@ function SubmitBuild({
   progress,
   submissions,
   disabled,
+  me,
 }: {
   classId: string
   company: Company
@@ -548,7 +594,12 @@ function SubmitBuild({
   progress: LessonProgress
   submissions: Submission[]
   disabled: boolean
+  me: string
 }) {
+  // Team capstones and Launch Day log what each partner did.
+  const needsLog = !lesson.individual && (!!lesson.ideas?.length || lesson.track === 'launch')
+  const [log, setLog] = useState<Record<string, string>>(() => Object.fromEntries(company.memberIds.map((u) => [u, ''])))
+  const logOk = !needsLog || company.memberIds.every((u) => (log[u] ?? '').trim().length >= 10)
   const [report, setReport] = useState<AiaReport | null>(null)
   const [link, setLink] = useState('')
   const [notes, setNotes] = useState('')
@@ -558,7 +609,8 @@ function SubmitBuild({
   const fileRef = useRef<HTMLInputElement>(null)
   const { busy, error, run, setError } = useAction()
   const pending = submissions.some((s) => s.status === 'pending')
-  const allEarned = progress.buildApproved && progress.bonusApproved
+  const mineApproved = lesson.individual ? progress.soloApproved.includes(me) : progress.buildApproved
+  const allEarned = mineApproved && progress.bonusApproved
 
   const onFile = async (f: File | undefined) => {
     if (!f) return
@@ -589,7 +641,8 @@ function SubmitBuild({
         </div>
       ) : (
         <>
-          {progress.buildApproved && <div className="alert good">✅ Approved! Did the bonus quest? Send the new version.</div>}
+          {lesson.individual && <div className="alert">🧗 This one is just you. Upload your own project.</div>}
+          {mineApproved && <div className="alert good">✅ Approved! Did the bonus quest? Send the new version.</div>}
           <div
             className={`dropzone ${over ? 'over' : ''}`}
             onClick={() => fileRef.current?.click()}
@@ -620,6 +673,20 @@ function SubmitBuild({
               {report.checks.some((c) => !c.passed) && <p className="small" style={{ margin: '8px 0 0' }}>⚠️ Fix the ❌ items, export again, and re-upload.</p>}
             </div>
           )}
+          {needsLog && (
+            <div className="callout frames">
+              <span className="t">🤝 Who did what?</span>
+              <p className="small" style={{ margin: '0 0 8px' }}>
+                Each partner: one or two sentences. Start with "I built…" or "I designed…".
+              </p>
+              {company.memberIds.map((u) => (
+                <label key={u} className="field" style={{ marginBottom: 8 }}>
+                  <span>{company.memberNames[u]}</span>
+                  <textarea rows={2} value={log[u] ?? ''} onChange={(e) => setLog({ ...log, [u]: e.target.value })} placeholder="I built… I fixed… I designed…" />
+                </label>
+              ))}
+            </div>
+          )}
           <label className="row" style={{ gap: 8, margin: '14px 0', fontWeight: 800 }}>
             <input type="checkbox" checked={bonus} onChange={(e) => setBonus(e.target.checked)} style={{ width: 22, height: 22 }} />
             ⭐ We did the bonus quest
@@ -637,10 +704,17 @@ function SubmitBuild({
           </details>
           <button
             className="gold big"
-            disabled={busy || (!report && !link.trim()) || (progress.buildApproved && !bonus)}
+            disabled={busy || (!report && !link.trim()) || (mineApproved && !bonus) || !logOk}
             onClick={async () => {
               const ok = await run(() =>
-                backend.submit(classId, company, { lessonId: lesson.id, link: link.trim(), notes: notes.trim(), claimsBonus: bonus, aia: report }),
+                backend.submit(classId, company, {
+                  lessonId: lesson.id,
+                  link: link.trim(),
+                  notes: notes.trim(),
+                  claimsBonus: bonus,
+                  aia: report,
+                  ...(needsLog ? { contributions: log } : {}),
+                }),
               )
               if (ok) {
                 setSent(true)
@@ -650,6 +724,7 @@ function SubmitBuild({
           >
             Send to teacher 🚀
           </button>
+          {!logOk && <p className="small muted">Fill in "Who did what?" for every partner first.</p>}
           {error && <p className="error">{error}</p>}
         </>
       )}
@@ -696,27 +771,80 @@ function TeacherPanel({ lesson }: { lesson: Lesson }) {
   )
 }
 
+function StarterEditor({ classId, lessonId, settings }: { classId: string; lessonId: string; settings: ClassSettings }) {
+  const [url, setUrl] = useState(settings.starters?.[lessonId] ?? '')
+  const [saved, setSaved] = useState(false)
+  const { busy, run } = useAction()
+  return (
+    <details className="card more">
+      <summary>📦 Starter project link</summary>
+      <p className="small" style={{ marginTop: 8 }}>
+        Paste a share link to a starter .aia (for example in Google Drive). Students see a "Starter project" button. Useful after absences or to skip Designer setup.
+      </p>
+      <input value={url} type="url" placeholder="https://drive.google.com/…" onChange={(e) => (setUrl(e.target.value), setSaved(false))} aria-label="Starter project link" />
+      <button
+        className="small"
+        style={{ marginTop: 8 }}
+        disabled={busy}
+        onClick={async () => {
+          const starters = { ...(settings.starters ?? {}) }
+          if (url.trim()) starters[lessonId] = url.trim()
+          else delete starters[lessonId]
+          if (await run(() => backend.updateClass(classId, { settings: { ...settings, starters } }))) setSaved(true)
+        }}
+      >
+        Save link
+      </button>
+      {saved && <span className="small muted"> Saved ✓</span>}
+    </details>
+  )
+}
+
 function CompaniesHere({ data, lessonId, classId }: { data: ReturnType<typeof useClassData>; lessonId: string; classId: string }) {
   const nav = useNavigate()
+  const { user } = useAuth()
   const rows = (data.companies ?? [])
-    .map((c) => ({ c, st: data.progress.get(c.id)?.lessons[lessonId]?.status }))
-    .filter((r) => r.st && r.st !== 'locked' && r.st !== 'not-taken')
+    .map((c) => ({ c, lp: data.progress.get(c.id)?.lessons[lessonId] }))
+    .filter((r) => r.lp && r.lp.status !== 'locked' && r.lp.status !== 'not-taken')
+  const excuse = (companyId: string, uid: string, name: string) =>
+    void ask(`Excuse ${name} from this quiz? Their company can finish the lesson without it.`, 'Excuse').then((ok) => {
+      if (ok) void backend.recordQuiz(classId, companyId, lessonId, uid, { score: 0, total: 0, by: user!.uid, byName: 'Teacher', at: Date.now(), excused: true })
+    })
   return (
     <div className="card">
       <h3>🏢 Companies here</h3>
       {rows.length === 0 && <p className="small muted">Nobody has reached this lesson yet.</p>}
-      {rows.map(({ c, st }) => (
-        <div key={c.id} className="spread" style={{ marginBottom: 8 }}>
-          <CompanyName company={c} size={26} />
-          <span
-            className={`chip ${st === 'complete' ? 'good' : st === 'review' ? 'warn' : st === 'returned' ? 'bad' : ''}`}
-            style={{ cursor: st === 'review' ? 'pointer' : undefined }}
-            onClick={() => st === 'review' && nav(`/class/${classId}`)}
-          >
-            {STATUS_LABEL[st!]}
-          </span>
-        </div>
-      ))}
+      {rows.map(({ c, lp }) => {
+        const st = lp!.status
+        const plan = c.plans?.[lessonId]
+        return (
+          <div key={c.id} style={{ marginBottom: 12 }}>
+            <div className="spread">
+              <CompanyName company={c} size={26} />
+              <span
+                className={`chip ${st === 'complete' ? 'good' : st === 'review' ? 'warn' : st === 'returned' ? 'bad' : ''}`}
+                style={{ cursor: st === 'review' ? 'pointer' : undefined }}
+                onClick={() => st === 'review' && nav(`/class/${classId}`)}
+              >
+                {STATUS_LABEL[st]}
+              </span>
+            </div>
+            <div className="row small" style={{ gap: 4, marginTop: 4 }}>
+              {lp!.quizBy.map((m) => (
+                <span key={m.uid} className={`chip ${m.passed ? 'good' : ''}`}>
+                  {m.name}: {m.excused ? 'excused' : m.pct !== null ? `${m.pct}%` : 'no quiz'}
+                  {!m.passed && (
+                    <button className="ghost" style={{ padding: '0 0 0 4px', fontSize: '0.75rem' }} onClick={() => excuse(c.id, m.uid, m.name)} title="Excuse from this quiz">
+                      excuse
+                    </button>
+                  )}
+                </span>
+              ))}
+              {plan && <span className={`chip ${plan.approved ? 'good' : 'warn'}`}>plan {plan.approved ? 'approved' : 'waiting'}</span>}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -1267,3 +1267,94 @@ details.more[open] > summary::before {
     font-size: 2.5rem;
   }
 }
+
+/* ---------- scaffolding & help ---------- */
+.slot {
+  display: inline-block;
+  min-width: 64px;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  margin: 0 4px;
+  border: 2px dashed rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.callout {
+  border: 3px solid var(--outline);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  box-shadow: 0 3px 0 var(--outline);
+  font-weight: 700;
+}
+.callout > .t {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  display: block;
+  margin-bottom: 4px;
+}
+.callout.check {
+  background: var(--good-soft);
+}
+.callout.new {
+  background: #f3ecff;
+}
+.callout.stuck {
+  background: var(--warn-soft);
+}
+.callout.frames {
+  background: var(--panel-2);
+}
+.callout ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+.callout details > summary {
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 1.05rem;
+  list-style: none;
+}
+.day-banner {
+  display: inline-block;
+  background: linear-gradient(180deg, #ffe066, var(--gold));
+  border: 3px solid var(--outline);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-family: var(--display);
+  margin-bottom: 8px;
+}
+.step-dots .day-sep {
+  width: 3px;
+  height: 30px;
+  background: var(--ink-3);
+  border-radius: 2px;
+  margin: 0 3px;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin: -6px 0 14px;
+}
+.toolbar button[aria-pressed='true'] {
+  --b: #ffe066;
+  --b2: var(--gold);
+}
+.idea-card {
+  text-align: left;
+  display: block;
+  width: 100%;
+  font-family: var(--body);
+  font-weight: 700;
+}
+.idea-card.on {
+  --b: #fff6d2;
+  --b2: #ffe48a;
+}
+.idea-card .t {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  display: block;
+}

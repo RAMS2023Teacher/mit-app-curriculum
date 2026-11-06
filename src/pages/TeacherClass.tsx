@@ -17,7 +17,9 @@ export function TeacherClass({ data }: { data: Data }) {
   const c = cls!
   const [tab, setTab] = useState<Tab>('overview')
   const nav = useNavigate()
-  const pending = (submissions ?? []).filter((s) => s.status === 'pending').length
+  const pending =
+    (submissions ?? []).filter((s) => s.status === 'pending').length +
+    (companies ?? []).reduce((n, c) => n + Object.values(c.plans ?? {}).filter((p) => !p.approved).length, 0)
   const noCompany = (members ?? []).filter((m) => !m.companyId)
   const joinUrl = `${location.origin}${location.pathname}`
 
@@ -57,7 +59,7 @@ export function TeacherClass({ data }: { data: Data }) {
         <>
           {pending > 0 && (
             <div className="alert warn">
-              📥 {pending} build{pending > 1 ? 's are' : ' is'} waiting for review.{' '}
+              📥 {pending} item{pending > 1 ? 's are' : ' is'} waiting for review.{' '}
               <button className="small" onClick={() => setTab('review')}>
                 Review now
               </button>
@@ -140,7 +142,7 @@ export function TeacherClass({ data }: { data: Data }) {
             <tbody>
               {(members ?? []).map((m) => {
                 const co = companies?.find((x) => x.id === m.companyId)
-                const quizzes = co ? Object.values(co.quizzes).filter((q) => q.by === m.uid).length : 0
+                const quizzes = co ? Object.values(co.quizzes).filter((byUser) => byUser[m.uid] && !byUser[m.uid].excused).length : 0
                 return (
                   <tr key={m.uid}>
                     <td>

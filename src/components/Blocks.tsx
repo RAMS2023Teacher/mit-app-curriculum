@@ -14,12 +14,15 @@ function kind(line: string): string {
 
 export function Blocks({ lines }: { lines: string[] }) {
   return (
-    <div className="blocks" role="img" aria-label={'App Inventor blocks: ' + lines.join('; ')}>
+    <div className="blocks" role="img" aria-label={'App Inventor blocks: ' + lines.join('; ').replace(/_{3,}/g, 'blank')}>
       {lines.map((l, i) => {
         const indent = l.match(/^ */)?.[0].length ?? 0
         return (
           <span key={i} className={`blk ${kind(l)}`} style={{ marginLeft: indent * 11 }}>
-            {l.trim()}
+            {l
+              .trim()
+              .split(/(_{3,})/)
+              .map((part, j) => (/^_{3,}$/.test(part) ? <span key={j} className="slot" aria-label="blank: you choose this block" /> : part))}
           </span>
         )
       })}

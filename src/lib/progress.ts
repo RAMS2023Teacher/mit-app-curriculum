@@ -11,10 +11,25 @@ export type NodeStatus =
   | 'complete'
   | 'not-taken'
 
+/** One member's quiz standing on a lesson. */
+export interface MemberQuiz {
+  uid: string
+  name: string
+  pct: number | null
+  passed: boolean
+  excused: boolean
+}
+
 export interface LessonProgress {
   status: NodeStatus
+  /** True when EVERY member has passed (or was excused by the teacher). */
   quizPassed: boolean
-  quizBest: number | null // percent
+  /** Lowest best score among members who took it (percent). */
+  quizBest: number | null
+  /** Each member's quiz standing. */
+  quizBy: MemberQuiz[]
+  /** Solo lessons: uids whose own build is approved. */
+  soloApproved: string[]
   buildApproved: boolean
   bonusApproved: boolean
   latest: Submission | null
@@ -80,7 +95,10 @@ export function computeProgress(
   approvals: Approval[],
   passPercent = 70,
 ): CompanyProgress {
-  const approved = new Map(approvals.filter((a) => a.companyId === company.id).map((a) => [a.lessonId, a]))
+  const mineApprovals = approvals.filter((a) => a.companyId === company.id)
+  const approved = new Map(mineApprovals.filter((a) => !a.uid).map((a) => [a.lessonId, a]))
+  const members = company.memberIds.map((uid) => ({ uid, name: company.memberNames[uid] ?? 'Member' }))
+  const size = Math.max(1, members.length)
   const mine = submissions
     .filter((s) => s.companyId === company.id)
     .sort((a, b) => b.submittedAt - a.submittedAt)
@@ -90,20 +108,46 @@ export function computeProgress(
   // First pass: per-lesson facts that don't depend on the tree.
   for (const node of TREE) {
     const lesson = getLesson(node.lessonId)
-    const q = company.quizzes[node.lessonId]
-    const pct = q ? Math.round((q.score / Math.max(1, q.total)) * 100) : null
+    const byUser = company.quizzes[node.lessonId] ?? {}
+    const quizBy: MemberQuiz[] = members.map(({ uid, name }) => {
+      const r = byUser[uid]
+      const pct = r && !r.excused ? Math.round((r.score / Math.max(1, r.total)) * 100) : null
+      return { uid, name, pct, excused: !!r?.excused, passed: !!r?.excused || (pct !== null && pct >= passPercent) }
+    })
+    const scores = quizBy.map((m) => m.pct).filter((p): p is number => p !== null)
+    const pct = scores.length ? Math.min(...scores) : null
+    const passedCount = quizBy.filter((m) => m.passed).length
+    const quizPassed = passedCount === size
     const subs = mine.filter((s) => s.lessonId === node.lessonId)
-    const appr = approved.get(node.lessonId)
-    const buildOk = !!appr || subs.some((s) => s.status === 'approved')
-    const bonus = !!appr?.bonus || subs.some((s) => s.status === 'approved' && s.bonusApproved)
-    const quizPassed = pct !== null && pct >= passPercent
+    let buildOk: boolean
+    let buildShare: number
+    let bonus: boolean
+    let soloApproved: string[] = []
+    if (lesson?.individual) {
+      // Solo lessons: every member needs their own approved build.
+      const soloAppr = mineApprovals.filter((a) => a.lessonId === node.lessonId && a.uid)
+      soloApproved = [...new Set([...soloAppr.map((a) => a.uid!), ...subs.filter((s) => s.status === 'approved').map((s) => s.submittedBy)])].filter((u) =>
+        company.memberIds.includes(u),
+      )
+      buildShare = soloApproved.length / size
+      buildOk = soloApproved.length === size
+      bonus = soloAppr.some((a) => a.bonus) || subs.some((s) => s.status === 'approved' && s.bonusApproved)
+    } else {
+      const appr = approved.get(node.lessonId)
+      buildOk = !!appr || subs.some((s) => s.status === 'approved')
+      buildShare = buildOk ? 1 : 0
+      bonus = !!appr?.bonus || subs.some((s) => s.status === 'approved' && s.bonusApproved)
+    }
+    // Quiz and solo XP fill in as each member finishes.
     const xp = lesson
-      ? (quizPassed ? lesson.xp.quiz : 0) + (buildOk ? lesson.xp.build : 0) + (bonus ? lesson.xp.bonus : 0)
+      ? Math.round(lesson.xp.quiz * (passedCount / size)) + Math.round(lesson.xp.build * buildShare) + (bonus ? lesson.xp.bonus : 0)
       : 0
     lessons[node.lessonId] = {
       status: 'locked',
       quizPassed,
       quizBest: pct,
+      quizBy,
+      soloApproved,
       buildApproved: buildOk,
       bonusApproved: bonus,
       latest: subs[0] ?? null,
@@ -129,14 +173,14 @@ export function computeProgress(
       p.status = notTaken ? 'not-taken' : 'locked'
     } else if (p.latest?.status === 'pending') p.status = 'review'
     else if (p.latest?.status === 'returned' && !p.buildApproved) p.status = 'returned'
-    else if (p.quizPassed || p.latest || p.buildApproved) p.status = 'in-progress'
+    else if (p.quizBy.some((m) => m.passed || m.pct !== null) || p.latest || p.buildApproved) p.status = 'in-progress'
     else p.status = 'available'
   }
 
   const xp = Object.values(lessons).reduce((sum, p) => sum + p.xp, 0)
 
   // Position: first active required lesson in tree order.
-  let position = 'launch-day'
+  let position = 'solo-build'
   const active = ordered.find(
     (n) => !n.optional && ['available', 'in-progress', 'review', 'returned'].includes(lessons[n.lessonId].status),
   )
@@ -145,8 +189,8 @@ export function computeProgress(
       active.branchId && !company.choices[active.branchId] ? `fork:${active.branchId}` : active.lessonId
   }
 
-  // 7 core + 1 first product + 4 studio lessons + launch day, whichever path is chosen.
-  const requiredCount = 13
+  // 7 core + 1 first product + 4 studio lessons + launch day + solo challenge, whichever path is chosen.
+  const requiredCount = 14
   const completedCount = ordered.filter((n) => !n.optional && lessons[n.lessonId].status === 'complete').length
 
   const pathChoice = company.choices.path
@@ -186,7 +230,8 @@ function computeBadges(company: Company, lessons: Record<string, LessonProgress>
   if (['games-capstone', 'media-capstone', 'tools-capstone'].some(c))
     b.push({ id: 'capstone', icon: '🏆', name: 'Capstone Complete', desc: 'Designed and built an original app' })
   if (c('launch-day')) b.push({ id: 'launch', icon: '🚀', name: 'Launched!', desc: 'Pitched and published your app' })
-  const perfect = Object.values(company.quizzes).some((q) => q.total > 0 && q.score === q.total)
+  if (c('solo-build')) b.push({ id: 'solo', icon: '🧗', name: 'Solo Builder', desc: 'Every partner built an app on their own' })
+  const perfect = Object.values(company.quizzes).some((byUser) => Object.values(byUser).some((q) => !q.excused && q.total > 0 && q.score === q.total))
   if (perfect) b.push({ id: 'perfect', icon: '💯', name: 'Perfect Score', desc: 'Got 100% on a quiz' })
   const bonuses = Object.values(lessons).filter((l) => l.bonusApproved).length
   if (bonuses >= 3) b.push({ id: 'over', icon: '⭐', name: 'Overachiever', desc: 'Earned 3+ challenge bonuses' })

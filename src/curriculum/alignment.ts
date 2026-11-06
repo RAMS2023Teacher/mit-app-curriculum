@@ -145,6 +145,12 @@ export const ALIGNMENT: Record<string, Alignment[]> = {
     { code: '6-8.CAS.c.1', how: 'The pitch explains how the app could affect its users and community.' },
     { code: '6-8.DTC.b.2', how: 'Peer-tests another company\'s app and gives feedback.' },
   ],
+  'solo-build': [
+    { code: '6-8.CT.d.3', how: 'Each student, alone, builds a new app that meets a written spec (the transfer task).' },
+    { code: '6-8.CT.d.4', how: 'The spec requires loops or a Clock, conditionals, expressions, variables and a procedure.' },
+    { code: '6-8.CT.b.3', how: 'Breaks the spec into parts and plans which skill solves each part.' },
+    { code: '6-8.CT.d.5', how: '"Explain your code": traces their own blocks step by step for the teacher.' },
+  ],
 }
 
 /** One short discussion question shown to students on the "Ship it" stage. */

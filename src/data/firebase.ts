@@ -27,7 +27,8 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import type { Approval, ClassRoom, Company, Member, Submission, UserProfile } from '../types'
-import { DEFAULT_SETTINGS, makeCode, type Backend, type Unsub } from './backend'
+import { DEFAULT_SETTINGS, approvalId, isBetter, makeCode, type Backend, type Unsub } from './backend'
+import { getLesson } from '../curriculum'
 
 export interface FirebaseEnv {
   options: FirebaseOptions
@@ -245,13 +246,15 @@ export function createFirebaseBackend(env: FirebaseEnv): Backend {
     async chooseBranch(classId, companyId, branchId, lessonId) {
       await updateDoc(doc(companies(classId), companyId), { [`choices.${branchId}`]: lessonId ?? deleteField() })
     },
-    async recordQuiz(classId, companyId, lessonId, result) {
+    async recordQuiz(classId, companyId, lessonId, who, result) {
       const ref = doc(companies(classId), companyId)
       const c = (await getDoc(ref)).data() as Company
-      const prev = c.quizzes?.[lessonId]
-      if (!prev || result.score / result.total >= prev.score / prev.total) {
-        await updateDoc(ref, { [`quizzes.${lessonId}`]: result })
+      if (isBetter(c.quizzes?.[lessonId]?.[who], result)) {
+        await updateDoc(ref, { [`quizzes.${lessonId}.${who}`]: result })
       }
+    },
+    async savePlan(classId, companyId, lessonId, plan) {
+      await updateDoc(doc(companies(classId), companyId), { [`plans.${lessonId}`]: plan })
     },
 
     watchSubmissions(classId, companyId, cb) {
@@ -281,11 +284,19 @@ export function createFirebaseBackend(env: FirebaseEnv): Backend {
     async review(classId, submissionId, review) {
       const subRef = doc(subs(classId), submissionId)
       const sub = withId<Submission>(await getDoc(subRef))
-      const approvalRef = doc(db, 'classes', classId, 'approvals', `${sub.companyId}__${sub.lessonId}`)
+      const solo = !!getLesson(sub.lessonId)?.individual
+      const approvalRef = doc(db, 'classes', classId, 'approvals', approvalId(sub.companyId, sub.lessonId, solo ? sub.submittedBy : undefined))
       const batch = writeBatch(db)
       batch.update(subRef, { ...review, reviewedAt: Date.now() })
       if (review.status === 'approved') {
-        const a: Approval = { id: approvalRef.id, companyId: sub.companyId, lessonId: sub.lessonId, bonus: review.bonusApproved, at: Date.now() }
+        const a: Approval = {
+          id: approvalRef.id,
+          companyId: sub.companyId,
+          lessonId: sub.lessonId,
+          ...(solo ? { uid: sub.submittedBy } : {}),
+          bonus: review.bonusApproved,
+          at: Date.now(),
+        }
         batch.set(approvalRef, a, { merge: true })
       } else if (sub.status === 'approved') {
         // Un-approving a build removes its XP.

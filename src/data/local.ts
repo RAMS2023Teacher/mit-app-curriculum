@@ -1,5 +1,5 @@
 import type { Approval, ClassRoom, Company, Member, Role, Submission, UserProfile } from '../types'
-import { DEFAULT_SETTINGS, makeCode, type Backend, type Unsub } from './backend'
+import { DEFAULT_SETTINGS, approvalId, isBetter, makeCode, type Backend, type Unsub } from './backend'
 import { getLesson } from '../curriculum'
 
 /** Demo backend: everything lives in this browser's localStorage. Open two tabs
@@ -16,7 +16,7 @@ interface DB {
 
 const KEY = 'appventure-demo-db'
 const SESSION_KEY = 'appventure-demo-user'
-const VERSION = 1
+const VERSION = 2
 
 const id = () => Math.random().toString(36).slice(2, 10)
 
@@ -231,10 +231,15 @@ export function createLocalBackend(): DemoBackend {
       else delete c.choices[branchId]
       save()
     },
-    async recordQuiz(classId, companyId, lessonId, result) {
+    async recordQuiz(classId, companyId, lessonId, uid, result) {
       const c = db.companies[classId][companyId]
-      const prev = c.quizzes[lessonId]
-      if (!prev || result.score / result.total >= prev.score / prev.total) c.quizzes[lessonId] = result
+      const byUser = (c.quizzes[lessonId] ??= {})
+      if (isBetter(byUser[uid], result)) byUser[uid] = result
+      save()
+    },
+    async savePlan(classId, companyId, lessonId, plan) {
+      const c = db.companies[classId][companyId]
+      c.plans = { ...(c.plans ?? {}), [lessonId]: plan }
       save()
     },
 
@@ -278,8 +283,16 @@ export function createLocalBackend(): DemoBackend {
         const all = Object.values(db.submissions[classId] ?? {}).sort((a, b) => a.submittedAt - b.submittedAt)
         for (const sub of all) {
           if (sub.status !== 'approved') continue
-          const aid = `${sub.companyId}__${sub.lessonId}`
-          out[aid] = { id: aid, companyId: sub.companyId, lessonId: sub.lessonId, bonus: sub.bonusApproved || !!out[aid]?.bonus, at: sub.reviewedAt ?? sub.submittedAt }
+          const solo = !!getLesson(sub.lessonId)?.individual
+          const aid = approvalId(sub.companyId, sub.lessonId, solo ? sub.submittedBy : undefined)
+          out[aid] = {
+            id: aid,
+            companyId: sub.companyId,
+            lessonId: sub.lessonId,
+            ...(solo ? { uid: sub.submittedBy } : {}),
+            bonus: sub.bonusApproved || !!out[aid]?.bonus,
+            at: sub.reviewedAt ?? sub.submittedAt,
+          }
         }
         return Object.values(out)
       }, cb)
@@ -458,16 +471,21 @@ function seed(): DB {
         ...extra,
       }
     }
-    const quiz = (lessonId: string, at: number) => {
+    // Every member takes each quiz. `onlyFirst` leaves the partner(s) still to do it.
+    const quiz = (lessonId: string, at: number, onlyFirst = false) => {
       const total = getLesson(lessonId)?.quiz.length ?? 4
-      company.quizzes[lessonId] = { score: Math.max(3, total - (lessonId.length % 2)), total, by: firstUid, byName: firstName, at }
+      company.quizzes[lessonId] = {}
+      s.people.forEach(([uid, name], i) => {
+        if (onlyFirst && i > 0) return
+        company.quizzes[lessonId][uid] = { score: Math.max(3, total - ((lessonId.length + i) % 2)), total, by: uid, byName: name, at: at + i * 3_600_000 }
+      })
     }
     s.done.forEach((lessonId, i) => {
       const at = t + i * 1.6 * day
       quiz(lessonId, at)
       addSub(lessonId, 'approved', at + day / 3, { bonusApproved: i % 3 === 0 })
     })
-    s.quizOnly?.forEach((l) => quiz(l, now - day))
+    s.quizOnly?.forEach((l) => quiz(l, now - day, true))
     if (s.pending) {
       quiz(s.pending, now - day)
       addSub(s.pending, 'pending', now - day / 6)

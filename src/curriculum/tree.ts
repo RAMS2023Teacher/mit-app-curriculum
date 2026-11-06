@@ -20,6 +20,7 @@ import type { Branch, TreeNode } from '../types'
  *    games-cap  media-cap  tools-cap
  *       └──────────┼──────────┘
  *              launch-day
+ *              solo-build   ← each student alone: the transfer task
  */
 export const TREE: TreeNode[] = [
   { lessonId: 'core-hello', col: 3, row: 0, prereqs: [], prereqMode: 'all' },
@@ -53,6 +54,7 @@ export const TREE: TreeNode[] = [
   { lessonId: 'tools-capstone', col: 5, row: 12.6, prereqs: ['tools-sensors'], prereqMode: 'all' },
 
   { lessonId: 'launch-day', col: 3, row: 14, prereqs: ['games-capstone', 'media-capstone', 'tools-capstone'], prereqMode: 'any' },
+  { lessonId: 'solo-build', col: 3, row: 15, prereqs: ['launch-day'], prereqMode: 'all' },
 ]
 
 export const BRANCHES: Record<string, Branch> = {

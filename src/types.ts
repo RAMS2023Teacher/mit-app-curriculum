@@ -8,12 +8,35 @@ export type Track = 'core' | 'side' | 'mini' | 'games' | 'media' | 'tools' | 'la
  *  2 spaces per nesting level. Lines are color-coded by their first word:
  *  when → event, set → setter, call → method, if/else/for/while → control,
  *  initialize/get → variable, to → procedure. */
+/** A block or component that is new on the required path, shown as a callout. */
+export interface NewBlock {
+  /** e.g. "format as decimal" or "HorizontalArrangement" */
+  name: string
+  /** where to find it, e.g. "Math drawer" or "Palette → Layout" */
+  where: string
+  /** one short sentence: what it does */
+  what: string
+}
+
 export interface LessonStep {
   title: string
   body: string
+  /** Blocks. Write ___ for an empty slot the student must fill in themselves. */
   blocks?: string[]
   /** Optional: which App Inventor screen the student should be on. */
   editor?: 'designer' | 'blocks' | 'phone'
+  /** Plain-language version of `body`: 1-3 short sentences, everyday words, no idioms. */
+  simple?: string
+  /** "Test now" checkpoint: what the student should see when this step works. */
+  check?: string
+  /** "Stuck? Check this" tips: the most common mistakes for this step. */
+  stuck?: string[]
+  /** This step starts class period N (only on multi-period lessons; omit for day 1). */
+  day?: number
+  /** New blocks/components introduced in this step. */
+  newBlocks?: NewBlock[]
+  /** Sentence starters for written or spoken tasks. */
+  frames?: string[]
 }
 
 export interface QuizQuestion {
@@ -57,6 +80,14 @@ export interface Lesson {
   quiz: QuizQuestion[]
   checks: AiaCheck[]
   teacherNotes: string
+  /** Required "you do" task at the end of the build: a new feature described in words only. */
+  remix?: { title: string; spec: string; hints: string[] }
+  /** "If your device can't…" fallbacks shown to students. */
+  devices?: { need: string; fallback: string }[]
+  /** Capstone idea cards that are doable with what this path taught. */
+  ideas?: { title: string; pitch: string; uses: string[]; stretch: string }[]
+  /** Every student submits their own build (Solo Challenge). */
+  individual?: boolean
 }
 
 export interface TreeNode {
@@ -93,6 +124,8 @@ export interface UserProfile {
 export interface ClassSettings {
   maxCompanySize: number
   quizPassPercent: number
+  /** lessonId → link to a starter .aia the teacher shared (e.g. Google Drive) */
+  starters?: Record<string, string>
 }
 
 export interface ClassRoom {
@@ -131,6 +164,21 @@ export interface QuizResult {
   by: string
   byName: string
   at: number
+  /** Set by the teacher to excuse a student from this quiz (e.g. long absence). */
+  excused?: boolean
+}
+
+/** A company's capstone plan, filled in on the Mission stage. */
+export interface CapstonePlan {
+  idea: string
+  pitch: string
+  must: string[]
+  nice: string[]
+  /** uid → what this person owns / their role */
+  roles: Record<string, string>
+  approved: boolean
+  feedback: string
+  updatedAt: number
 }
 
 export interface Company {
@@ -144,8 +192,10 @@ export interface Company {
   inviteCode: string
   /** branchId → chosen lessonId */
   choices: Record<string, string>
-  /** lessonId → best quiz result */
-  quizzes: Record<string, QuizResult>
+  /** lessonId → uid → that student's best quiz result. Every member takes the quiz. */
+  quizzes: Record<string, Record<string, QuizResult>>
+  /** lessonId → capstone plan */
+  plans?: Record<string, CapstonePlan>
   createdAt: number
 }
 
@@ -176,6 +226,8 @@ export interface Submission {
   notes: string
   claimsBonus: boolean
   aia: AiaReport | null
+  /** uid → what that partner did (capstones and Launch Day) */
+  contributions?: Record<string, string>
   status: SubmissionStatus
   feedback: string
   bonusApproved: boolean
@@ -187,9 +239,11 @@ export interface Submission {
 
 /** Public, class-visible record that a company's build was approved (written on review). */
 export interface Approval {
-  id: string // `${companyId}__${lessonId}`
+  id: string // `${companyId}__${lessonId}` or, for solo lessons, `${companyId}__${lessonId}__${uid}`
   companyId: string
   lessonId: string
+  /** Set for individual (solo) lessons: whose build was approved. */
+  uid?: string
   bonus: boolean
   at: number
 }

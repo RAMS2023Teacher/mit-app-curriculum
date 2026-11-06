@@ -41,7 +41,7 @@ export function Tree({ companies, progress, viewerCompanyId, showCounts, onSelec
   const viewerCompany = companies.find((c) => c.id === viewerCompanyId)
   const status = (id: string): NodeStatus | null => viewer?.lessons[id]?.status ?? null
   const width = PADX * 2 + 6 * COLW
-  const height = PADY * 2 + 14 * ROWH + 30
+  const height = PADY * 2 + 15 * ROWH + 30
 
   // Group companies by where they are on the tree.
   const byPosition = useMemo(() => {

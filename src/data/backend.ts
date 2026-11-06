@@ -1,4 +1,4 @@
-import type { Approval, ClassRoom, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
+import type { Approval, CapstonePlan, ClassRoom, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
 
 export type Unsub = () => void
 
@@ -8,6 +8,7 @@ export interface NewSubmission {
   notes: string
   claimsBonus: boolean
   aia: Submission['aia']
+  contributions?: Record<string, string>
 }
 
 export interface Review {
@@ -42,7 +43,9 @@ export interface Backend {
   leaveCompany(classId: string, companyId: string, uid?: string): Promise<void>
   updateCompany(classId: string, companyId: string, patch: { name?: string; tagline?: string; logo?: LogoSpec }): Promise<void>
   chooseBranch(classId: string, companyId: string, branchId: string, lessonId: string | null): Promise<void>
-  recordQuiz(classId: string, companyId: string, lessonId: string, result: QuizResult): Promise<void>
+  /** Store a student's quiz result (keeps their best). Teachers pass excused results for a student. */
+  recordQuiz(classId: string, companyId: string, lessonId: string, uid: string, result: QuizResult): Promise<void>
+  savePlan(classId: string, companyId: string, lessonId: string, plan: CapstonePlan): Promise<void>
 
   /** Teacher: all submissions in the class. Student: their company's submissions. */
   watchSubmissions(classId: string, companyId: string | null, cb: (s: Submission[]) => void): Unsub
@@ -57,3 +60,14 @@ export const makeCode = (n = 6) =>
   Array.from({ length: n }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('')
 
 export const DEFAULT_SETTINGS: ClassSettings = { maxCompanySize: 3, quizPassPercent: 70 }
+
+export const approvalId = (companyId: string, lessonId: string, uid?: string) =>
+  uid ? `${companyId}__${lessonId}__${uid}` : `${companyId}__${lessonId}`
+
+/** Keep a student's best quiz result; a teacher's "excused" never replaces a real pass. */
+export const isBetter = (prev: QuizResult | undefined, next: QuizResult) => {
+  if (!prev) return true
+  if (next.excused) return !prev.excused && prev.score / Math.max(1, prev.total) < 0.7
+  if (prev.excused) return true
+  return next.score / next.total >= prev.score / prev.total
+}
