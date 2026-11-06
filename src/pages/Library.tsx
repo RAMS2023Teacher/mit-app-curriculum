@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { LESSONS_IN_ORDER, TRACK_INFO } from '../curriculum'
 import type { Track } from '../types'
+import { alignmentFor } from '../curriculum/alignment'
 
 const ORDER: Track[] = ['core', 'mini', 'side', 'games', 'media', 'tools', 'launch']
 
@@ -12,6 +13,11 @@ export function Library() {
       <p className="muted">
         {LESSONS_IN_ORDER.length} lessons, about {totalPeriods} class periods in all. A company takes 13 required lessons: 7 core, 1 first
         product, 4 on their studio path, and Launch Day. Side quests are optional.
+      </p>
+      <p>
+        <Link to="/standards" className="btn small">
+          📏 MA DLCS standards alignment
+        </Link>
       </p>
       {ORDER.map((track) => {
         const lessons = LESSONS_IN_ORDER.filter((l) => l.track === track)
@@ -36,6 +42,13 @@ export function Library() {
                     {l.concepts.map((c) => (
                       <span key={c} className="chip">
                         {c}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="row" style={{ gap: 4, marginTop: 8 }}>
+                    {alignmentFor(l.id).map((a) => (
+                      <span key={a.code} className="chip brand" style={{ fontSize: '0.7rem' }} title="MA DLCS standard">
+                        {a.code.replace('6-8.', '')}
                       </span>
                     ))}
                   </div>

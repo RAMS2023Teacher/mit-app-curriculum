@@ -13,6 +13,8 @@ import { AiaReportView } from '../components/AiaReportView'
 import { CompanyName, Loading, celebrate, timeAgo, useAction } from '../components/ui'
 import { APP_INVENTOR_URL } from '../components/Layout'
 import { ask } from '../components/confirm'
+import { alignmentFor, DISCUSS } from '../curriculum/alignment'
+import { getStandard } from '../curriculum/standards'
 
 type Stage = 'brief' | 'build' | 'quiz' | 'submit'
 
@@ -145,6 +147,14 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
           )}
           {current === 'submit' && (
             <>
+              {DISCUSS[lesson.id] && (
+                <div className="card" style={{ background: 'linear-gradient(180deg, #eef4ff, #dfe9ff)' }}>
+                  <h3 style={{ marginBottom: 6 }}>💬 Talk it over with your partner</h3>
+                  <p className="mission-text" style={{ margin: 0 }}>
+                    {DISCUSS[lesson.id]}
+                  </p>
+                </div>
+              )}
               <BonusQuest lesson={lesson} />
               {company && progress ? (
                 <SubmitBuild
@@ -171,6 +181,7 @@ function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
             <Link to="/phone">📱 Phone won't connect?</Link>
           </p>
           {isTeacher && <TeacherPanel lesson={lesson} />}
+          {isTeacher && <StandardsPanel lessonId={lesson.id} />}
           {isTeacher && classId && <CompaniesHere data={data} lessonId={lesson.id} classId={classId} />}
         </aside>
       </div>
@@ -707,5 +718,32 @@ function CompaniesHere({ data, lessonId, classId }: { data: ReturnType<typeof us
         </div>
       ))}
     </div>
+  )
+}
+
+function StandardsPanel({ lessonId }: { lessonId: string }) {
+  const list = alignmentFor(lessonId)
+  if (!list.length) return null
+  return (
+    <details className="card more" open>
+      <summary>📏 MA DLCS standards ({list.length})</summary>
+      <div className="stack" style={{ marginTop: 10 }}>
+        {list.map((a) => {
+          const st = getStandard(a.code)
+          return (
+            <div key={a.code} className="small">
+              <span className="chip brand">{a.code}</span>
+              <div style={{ marginTop: 4 }}>{st?.text}</div>
+              <div className="muted" style={{ marginTop: 2 }}>
+                ↳ {a.how}
+              </div>
+            </div>
+          )
+        })}
+        <Link to="/standards" className="small">
+          See coverage for all standards →
+        </Link>
+      </div>
+    </details>
   )
 }

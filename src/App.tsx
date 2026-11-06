@@ -15,6 +15,7 @@ import { Library } from './pages/Library'
 import { CompanyPage } from './pages/CompanyPage'
 import { Leaderboard } from './pages/Leaderboard'
 import { PhoneGuide } from './pages/PhoneGuide'
+import { StandardsPage } from './pages/StandardsPage'
 
 function Home() {
   const { user } = useAuth()
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/lessons" element={<Library />} />
             <Route path="/lessons/:lessonId" element={<LessonPage />} />
             <Route path="/phone" element={<PhoneGuide />} />
+            <Route path="/standards" element={<StandardsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

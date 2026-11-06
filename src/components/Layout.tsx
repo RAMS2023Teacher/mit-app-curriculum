@@ -31,6 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </>
           )}
           <NavLink to="/lessons">Lessons</NavLink>
+          {user?.role === 'teacher' && <NavLink to="/standards">Standards</NavLink>}
           <NavLink to="/phone">Phone setup</NavLink>
         </nav>
         <a className="btn small" href={APP_INVENTOR_URL} target="_blank" rel="noreferrer">
