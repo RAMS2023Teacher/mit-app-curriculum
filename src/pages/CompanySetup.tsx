@@ -14,10 +14,9 @@ export function CompanySetup({ cls }: { cls: ClassRoom }) {
   const { busy, error, run } = useAction()
   return (
     <div className="page" style={{ maxWidth: 900 }}>
-      <h1>Start your company</h1>
-      <p className="muted">
-        In <strong>{cls.name}</strong> you build apps as a company of up to {cls.settings.maxCompanySize}. One partner creates the company,
-        then shares the invite code with the others.
+      <h1 className="sky-title">Start your company</h1>
+      <p style={{ fontWeight: 800 }}>
+        Teams of up to {cls.settings.maxCompanySize}. One partner creates it, the others join with the invite code.
       </p>
       <div className="tabs">
         <button className={mode === 'create' ? 'active' : ''} onClick={() => setMode('create')}>
@@ -56,7 +55,7 @@ export function CompanySetup({ cls }: { cls: ClassRoom }) {
           </div>
           <h3>Design your logo</h3>
           <LogoEditor value={logo} onChange={setLogo} />
-          <button className="primary" disabled={busy || !name.trim()} style={{ marginTop: 12 }}>
+          <button className="go big" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
             🚀 Found {name.trim() || 'my company'}
           </button>
           {error && <p className="error">{error}</p>}
@@ -70,7 +69,7 @@ export function CompanySetup({ cls }: { cls: ClassRoom }) {
             run(() => backend.joinCompany(cls.id, code))
           }}
         >
-          <p>Ask your partner for the 5-letter invite code. It's on their Company page.</p>
+          <p style={{ fontWeight: 800 }}>Type your partner's 5-letter invite code.</p>
           <input className="code-input" maxLength={5} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="XXXXX" aria-label="Invite code" />
           <button className="primary" style={{ marginTop: 12 }} disabled={busy || code.length < 5}>
             Join company

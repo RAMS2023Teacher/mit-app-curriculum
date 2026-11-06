@@ -205,7 +205,7 @@ export function Tree({ companies, progress, viewerCompanyId, showCounts, onSelec
                 className="node-circle"
                 r={r}
                 fill={fill}
-                stroke={st === 'complete' ? 'var(--good)' : 'var(--panel)'}
+                stroke={st === 'complete' ? 'var(--go-edge)' : 'var(--outline)'}
                 strokeWidth="4"
                 strokeDasharray={n.optional ? '5 4' : undefined}
               />

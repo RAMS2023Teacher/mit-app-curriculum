@@ -3,25 +3,62 @@ import type { Company } from '../types'
 import type { CompanyProgress } from '../lib/progress'
 import { Logo } from './Logo'
 
-export function XpBar({ progress }: { progress: CompanyProgress }) {
+/** Shield badge showing the company's level number. */
+export function LevelBadge({ level, size = 56 }: { level: CompanyProgress['level']; size?: number }) {
+  return (
+    <svg width={size} height={size * 1.1} viewBox="0 0 100 110" role="img" aria-label={`Level ${level.index + 1}: ${level.name}`} style={{ flex: 'none' }}>
+      <path d="M50 4 L94 18 V52 C94 80 74 98 50 106 C26 98 6 80 6 52 V18 Z" fill="#1b2350" />
+      <path d="M50 12 L86 23 V52 C86 75 70 90 50 97 C30 90 14 75 14 52 V23 Z" fill="url(#lvl)" />
+      <defs>
+        <linearGradient id="lvl" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffe066" />
+          <stop offset="1" stopColor="#ff9f00" />
+        </linearGradient>
+      </defs>
+      <text x="50" y="66" textAnchor="middle" fontFamily="Lilita One, sans-serif" fontSize="46" fill="#fff" stroke="#1b2350" strokeWidth="6" paintOrder="stroke">
+        {level.index + 1}
+      </text>
+    </svg>
+  )
+}
+
+export function XpBar({ progress, compact }: { progress: CompanyProgress; compact?: boolean }) {
   const { xp, level } = progress
   const pct = level.next ? Math.min(100, ((xp - level.min) / (level.next - level.min)) * 100) : 100
   return (
-    <div>
-      <div className="spread small" style={{ marginBottom: 4 }}>
-        <span>
-          {level.icon} <strong>{level.name}</strong>
-        </span>
-        <span>
-          <span className="xp-num">{xp} XP</span>
-          {level.next && <span className="muted"> / {level.next} to level up</span>}
-        </span>
-      </div>
-      <div className="xpbar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-        <div style={{ width: `${pct}%` }} />
+    <div className="row" style={{ flexWrap: 'nowrap', gap: 10 }}>
+      {!compact && <LevelBadge level={level} size={46} />}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="spread small" style={{ marginBottom: 4, fontWeight: 900 }}>
+          <span>
+            {level.icon} {level.name}
+          </span>
+          {level.next && <span className="muted">next: {level.next}</span>}
+        </div>
+        <div className="xpbar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label="Experience points">
+          <div style={{ width: `${pct}%` }} />
+          <span>⭐ {xp} XP</span>
+        </div>
       </div>
     </div>
   )
+}
+
+/** A short burst of confetti for wins. */
+export function celebrate() {
+  const box = document.createElement('div')
+  box.className = 'confetti'
+  const colors = ['#ffc928', '#33c95a', '#2f6bff', '#f0434f', '#9b51e0', '#11b39e']
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('i')
+    p.style.left = Math.random() * 100 + 'vw'
+    p.style.background = colors[i % colors.length]
+    p.style.animationDelay = Math.random() * 0.4 + 's'
+    p.style.animationDuration = 1.4 + Math.random() + 's'
+    box.appendChild(p)
+  }
+  document.body.appendChild(box)
+  setTimeout(() => box.remove(), 2800)
 }
 
 export function CompanyName({ company, size = 32, sub }: { company: Company; size?: number; sub?: React.ReactNode }) {
