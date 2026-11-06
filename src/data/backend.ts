@@ -20,7 +20,9 @@ export interface Review {
 /** Everything the UI needs from storage. Implemented by the demo (localStorage)
  *  backend and the Firebase backend, so the UI never knows which is running. */
 export interface Backend {
-  mode: 'demo' | 'firebase'
+  mode: 'demo' | 'firebase' | 'appsscript'
+  /** Why sign-in failed, if it did (Apps Script: wrong account). */
+  authProblem?: () => string
 
   onAuth(cb: (user: UserProfile | null) => void): Unsub
   signIn(): Promise<void>

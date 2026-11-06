@@ -11,7 +11,12 @@ export function Landing() {
       <section className="hero">
         <h1 className="sky-title">Build apps. Level up.</h1>
         <p className="lead">Start a company with a partner, climb the skill tree, and ship real apps to your phone.</p>
-        {!demo && (
+        {backend.mode === 'appsscript' && (
+          <div className="alert bad" style={{ maxWidth: 560, margin: '0 auto' }}>
+            {backend.authProblem?.() || 'Loading your account…'}
+          </div>
+        )}
+        {backend.mode === 'firebase' && (
           <button className="go big" disabled={busy} onClick={() => run(() => backend.signIn())}>
             ▶ Sign in with Google
           </button>

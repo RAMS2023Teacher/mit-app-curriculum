@@ -42,9 +42,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {user && (
           <div className="userchip">
             <span className="name">{user.name}</span>
-            <button className="small ghost" onClick={() => backend.signOut()}>
-              Sign out
-            </button>
+            {backend.mode !== 'appsscript' && (
+              <button className="small ghost" onClick={() => backend.signOut()}>
+                Sign out
+              </button>
+            )}
           </div>
         )}
       </header>

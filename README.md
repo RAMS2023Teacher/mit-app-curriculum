@@ -66,7 +66,13 @@ With no Firebase settings the app runs in **demo mode**: a sample class
 points on the tree, saved in your browser. Use the bar at the bottom to switch between
 the teacher and students. Open two tabs as different people and they stay in sync.
 
-## Go live with real accounts (Firebase, free tier)
+## Go live in your school Google account (recommended)
+
+See **[DEPLOY.md](DEPLOY.md)**. AppVenture runs as a Google Apps Script web app, and all data stays in a
+Google Sheet in the teacher's school Drive. Students sign in with their school accounts, and no other vendors are involved.
+After changing the app, run `npm run build:appsscript` and commit `apps-script/index.html`.
+
+## Alternative: Firebase (free tier)
 
 1. Create a project at <https://console.firebase.google.com>.
 2. **Authentication → Sign-in method → Google**: enable it. Under **Settings → Authorized
