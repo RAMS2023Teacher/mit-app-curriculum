@@ -47,9 +47,9 @@ export function useClassData(classId?: string) {
   const pass = cls?.settings.quizPassPercent ?? 70
   const progress = useMemo(() => {
     const map = new Map<string, ReturnType<typeof computeProgress>>()
-    for (const c of companies ?? []) map.set(c.id, computeProgress(c, submissions ?? [], approvals ?? [], pass))
+    for (const c of companies ?? []) map.set(c.id, computeProgress(c, submissions ?? [], approvals ?? [], pass, cls?.settings))
     return map
-  }, [companies, submissions, approvals, pass])
+  }, [companies, submissions, approvals, pass, cls?.settings])
   const loading = cls === undefined || members === undefined || companies === undefined || submissions === undefined || approvals === undefined
   return { cls, members, companies, submissions, approvals, progress, isTeacher, myMember, myCompany, loading }
 }

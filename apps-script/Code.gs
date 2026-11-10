@@ -630,6 +630,17 @@ var API_ = {
         out.skipped += byLesson[lessonId].length
         return
       }
+      // If the teacher changed the points in Classroom, scale grades to the new total.
+      var scale = 1
+      try {
+        var live = Classroom.Courses.CourseWork.get(courseId, cw.id)
+        if (live && live.maxPoints && cw.points && live.maxPoints !== cw.points) {
+          scale = live.maxPoints / cw.points
+          cw.points = live.maxPoints
+        }
+      } catch (e) {
+        /* keep the saved points */
+      }
       // Map Classroom user id → that student's submission for this assignment.
       var subs = {}
       var token
@@ -641,6 +652,7 @@ var API_ = {
         token = res.nextPageToken
       } while (token)
       byLesson[lessonId].forEach(function (g) {
+        g = { uid: g.uid, lessonId: g.lessonId, points: Math.round(g.points * scale * 10) / 10 }
         var u = db.get('users/' + g.uid)
         var sub = u && u.gid ? subs[u.gid] : null
         if (!sub) {

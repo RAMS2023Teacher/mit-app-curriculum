@@ -1,4 +1,5 @@
-import type { Approval, Company, Submission, TreeNode } from '../types'
+import type { Approval, ClassSettings, Company, Submission, TreeNode } from '../types'
+import { withXp } from './xp'
 import { TREE } from '../curriculum/tree'
 import { getLesson } from '../curriculum'
 
@@ -94,6 +95,7 @@ export function computeProgress(
   submissions: Submission[],
   approvals: Approval[],
   passPercent = 70,
+  settings?: ClassSettings | null,
 ): CompanyProgress {
   const mineApprovals = approvals.filter((a) => a.companyId === company.id)
   const approved = new Map(mineApprovals.filter((a) => !a.uid).map((a) => [a.lessonId, a]))
@@ -107,7 +109,8 @@ export function computeProgress(
 
   // First pass: per-lesson facts that don't depend on the tree.
   for (const node of TREE) {
-    const lesson = getLesson(node.lessonId)
+    const raw = getLesson(node.lessonId)
+    const lesson = raw ? withXp(raw, settings) : undefined
     const byUser = company.quizzes[node.lessonId] ?? {}
     const quizBy: MemberQuiz[] = members.map(({ uid, name }) => {
       const r = byUser[uid]

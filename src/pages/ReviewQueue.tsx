@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { backend } from '../data'
-import type { CapstonePlan, Company, Submission } from '../types'
+import type { CapstonePlan, ClassSettings, Company, Submission } from '../types'
+import { withXp } from '../lib/xp'
 import { getLesson } from '../curriculum'
 import { AiaReportView } from '../components/AiaReportView'
 import { CompanyName, timeAgo, useAction } from '../components/ui'
 
-export function ReviewQueue({ classId, submissions, companies }: { classId: string; submissions: Submission[]; companies: Company[] }) {
+export function ReviewQueue({ classId, submissions, companies, settings }: { classId: string; submissions: Submission[]; companies: Company[]; settings?: ClassSettings }) {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending')
   const list = submissions.filter((s) => filter === 'all' || s.status === 'pending')
   const plans = companies.flatMap((c) => Object.entries(c.plans ?? {}).filter(([, p]) => !p.approved).map(([lessonId, plan]) => ({ c, lessonId, plan })))
@@ -34,15 +35,16 @@ export function ReviewQueue({ classId, submissions, companies }: { classId: stri
       {list.length === 0 && <div className="card flat center muted">🎉 Nothing waiting for review.</div>}
       <div className="stack">
         {list.map((s) => (
-          <ReviewCard key={s.id} classId={classId} sub={s} company={companies.find((c) => c.id === s.companyId)} />
+          <ReviewCard key={s.id} classId={classId} sub={s} company={companies.find((c) => c.id === s.companyId)} settings={settings} />
         ))}
       </div>
     </div>
   )
 }
 
-function ReviewCard({ classId, sub, company }: { classId: string; sub: Submission; company?: Company }) {
-  const lesson = getLesson(sub.lessonId)
+function ReviewCard({ classId, sub, company, settings }: { classId: string; sub: Submission; company?: Company; settings?: ClassSettings }) {
+  const raw = getLesson(sub.lessonId)
+  const lesson = raw ? withXp(raw, settings) : undefined
   const [feedback, setFeedback] = useState(sub.feedback)
   const [bonus, setBonus] = useState(sub.bonusApproved || sub.claimsBonus)
   const { busy, error, run } = useAction()

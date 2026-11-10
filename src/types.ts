@@ -126,6 +126,8 @@ export interface ClassSettings {
   quizPassPercent: number
   /** lessonId → link to a starter .aia the teacher shared (e.g. Google Drive) */
   starters?: Record<string, string>
+  /** lessonId → the teacher's own XP values for that lesson (otherwise the lesson's defaults) */
+  xp?: Record<string, Lesson['xp']>
 }
 
 /** What the teacher shows on the projector Class Screen. */

@@ -16,6 +16,7 @@ import { ask } from '../components/confirm'
 import { DevicesBox, IdeasAndPlan, RemixView, StepView } from '../components/LessonParts'
 import { SpeakButton } from '../components/Speak'
 import { usePref } from '../lib/prefs'
+import { withXp } from '../lib/xp'
 import { alignmentFor, DISCUSS } from '../curriculum/alignment'
 import { getStandard } from '../curriculum/standards'
 
@@ -50,8 +51,10 @@ export function LessonPage() {
   return <LessonView key={lesson.id} lesson={lesson} classId={classId} />
 }
 
-function LessonView({ lesson, classId }: { lesson: Lesson; classId?: string }) {
+function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: string }) {
   const data = useClassData(classId)
+  // This class's XP values for the lesson (the teacher can change them in Settings).
+  const lesson = withXp(rawLesson, data.cls?.settings)
   const { user } = useAuth()
   const steps = useStepsDone(`appventure-steps-${user?.uid ?? 'anon'}-${lesson.id}`)
   const company = classId ? data.myCompany : null

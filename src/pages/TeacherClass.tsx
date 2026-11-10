@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { backend } from '../data'
 import type { useClassData } from '../data/hooks'
-import { getLesson } from '../curriculum'
+import { getLesson, LESSONS_IN_ORDER } from '../curriculum'
 import { BRANCHES } from '../curriculum/tree'
 import { Tree, TreeLegend } from '../components/Tree'
 import { CompanyName, useAction } from '../components/ui'
@@ -81,11 +81,11 @@ export function TeacherClass({ data }: { data: Data }) {
             Click a lesson to preview it.
           </p>
           <TreeLegend />
-          <Tree companies={companies ?? []} progress={progress} showCounts onSelect={(id) => nav(`/class/${c.id}/lesson/${id}`)} />
+          <Tree companies={companies ?? []} progress={progress} showCounts settings={c.settings} onSelect={(id) => nav(`/class/${c.id}/lesson/${id}`)} />
         </>
       )}
 
-      {tab === 'review' && <ReviewQueue classId={c.id} submissions={submissions ?? []} companies={companies ?? []} />}
+      {tab === 'review' && <ReviewQueue classId={c.id} submissions={submissions ?? []} companies={companies ?? []} settings={c.settings} />}
 
       {tab === 'companies' && (
         <div className="card table-wrap">
@@ -211,7 +211,7 @@ function Settings({ data }: { data: Data }) {
         className="card"
         onSubmit={async (e) => {
           e.preventDefault()
-          const ok = await run(() => backend.updateClass(c.id, { name, settings: { maxCompanySize: size, quizPassPercent: pass } }))
+          const ok = await run(() => backend.updateClass(c.id, { name, settings: { ...c.settings, maxCompanySize: size, quizPassPercent: pass } }))
           if (ok) setSaved(true)
         }}
       >
@@ -258,6 +258,115 @@ function Settings({ data }: { data: Data }) {
           Delete class
         </button>
       </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <LessonPoints data={data} />
+      </div>
+    </div>
+  )
+}
+
+type Xp = { quiz: number; build: number; bonus: number }
+
+/** Teacher-adjustable XP for each lesson in this class. */
+function LessonPoints({ data }: { data: Data }) {
+  const c = data.cls!
+  const [xp, setXp] = useState<Record<string, Xp>>(() => ({ ...(c.settings.xp ?? {}) }))
+  const [saved, setSaved] = useState(false)
+  const { busy, error, run } = useAction()
+  const valueOf = (id: string, def: Xp) => xp[id] ?? def
+  const set = (id: string, def: Xp, k: keyof Xp, v: string) => {
+    const n = Math.max(0, Math.min(1000, Math.round(Number(v) || 0)))
+    setXp({ ...xp, [id]: { ...valueOf(id, def), [k]: n } })
+    setSaved(false)
+  }
+  const reset = (id: string) => {
+    const next = { ...xp }
+    delete next[id]
+    setXp(next)
+    setSaved(false)
+  }
+  const changed = (id: string, def: Xp) => !!xp[id] && (xp[id].quiz !== def.quiz || xp[id].build !== def.build || xp[id].bonus !== def.bonus)
+  return (
+    <div className="card">
+      <div className="spread">
+        <h3 style={{ margin: 0 }}>⭐ Lesson points (XP)</h3>
+        <div className="row">
+          <button className="small ghost" onClick={() => (setXp({}), setSaved(false))}>
+            Reset all to defaults
+          </button>
+          <button
+            className="go"
+            disabled={busy}
+            onClick={async () => {
+              // Keep only lessons that differ from their defaults.
+              const keep: Record<string, Xp> = {}
+              for (const l of LESSONS_IN_ORDER) if (changed(l.id, l.xp)) keep[l.id] = xp[l.id]
+              if (await run(() => backend.updateClass(c.id, { settings: { ...c.settings, xp: keep } }))) setSaved(true)
+            }}
+          >
+            Save points
+          </button>
+          {saved && <span className="small muted">Saved ✓</span>}
+        </div>
+      </div>
+      <p className="small muted">
+        XP students earn for each part of a lesson in this class. Changes update everyone's XP, levels, the tree and the leaderboard right away. Grades sent to
+        Google Classroom don't use XP; they use the points you set on each assignment.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <div className="table-wrap">
+        <table className="list">
+          <thead>
+            <tr>
+              <th>Lesson</th>
+              <th>Quiz</th>
+              <th>Build</th>
+              <th>Bonus</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {LESSONS_IN_ORDER.map((l) => {
+              const v = valueOf(l.id, l.xp)
+              const isChanged = changed(l.id, l.xp)
+              return (
+                <tr key={l.id} style={isChanged ? { background: 'var(--warn-soft)' } : undefined}>
+                  <td>
+                    {l.icon} <strong>{l.title}</strong>
+                  </td>
+                  {(['quiz', 'build', 'bonus'] as const).map((k) => (
+                    <td key={k}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1000}
+                        step={10}
+                        value={v[k]}
+                        onChange={(e) => set(l.id, l.xp, k, e.target.value)}
+                        style={{ width: 84 }}
+                        aria-label={`${l.title} ${k} XP`}
+                        title={`Default: ${l.xp[k]}`}
+                      />
+                    </td>
+                  ))}
+                  <td className="xp-num">{v.quiz + v.build}</td>
+                  <td>
+                    {isChanged && (
+                      <button className="small ghost" onClick={() => reset(l.id)} title={`Back to ${l.xp.quiz} / ${l.xp.build} / ${l.xp.bonus}`}>
+                        ↺ default
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="small muted" style={{ marginBottom: 0 }}>
+        Levels start at 150, 400, 800, 1300, 2000 and 2700 XP. If you raise or lower points a lot, students reach levels faster or slower.
+      </p>
     </div>
   )
 }

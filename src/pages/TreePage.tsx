@@ -54,6 +54,7 @@ export function TreePage() {
         viewerCompanyId={mine?.id}
         showCounts={data.isTeacher}
         onSelect={(id) => nav(`/class/${classId}/lesson/${id}`)}
+        settings={data.cls.settings}
       />
     </div>
   )

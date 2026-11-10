@@ -5,6 +5,8 @@ import { Md } from './Md'
 import { Blocks } from './Blocks'
 import { SpeakButton } from './Speak'
 import { useAction } from './ui'
+import { AiMap } from './AiMap'
+import { findTargets, targetLabel } from '../lib/aiTargets'
 
 const EDITOR_TAG: Record<string, { label: string; color: string }> = {
   designer: { label: '🎨 In the Designer', color: 'var(--core)' },
@@ -50,6 +52,7 @@ export function StepView({ step, simple }: { step: LessonStep; simple: boolean }
           </div>
         </details>
       )}
+      <WhereIsIt step={step} />
       {step.blocks && <Blocks lines={step.blocks} />}
       {step.blocks?.some((l) => /_{3,}/.test(l)) && <p className="small muted">The dashed boxes are yours to fill in. The words above say what goes there.</p>}
       {step.frames && step.frames.length > 0 && (
@@ -236,5 +239,31 @@ export function IdeasAndPlan({ lesson, company, classId }: { lesson: Lesson; com
         </div>
       )}
     </>
+  )
+}
+
+/** "Where is it?" diagrams of the App Inventor window for the places a step mentions. */
+function WhereIsIt({ step }: { step: LessonStep }) {
+  const targets = findTargets(step)
+  const [i, setI] = useState(0)
+  if (!targets.length) return null
+  const t = targets[Math.min(i, targets.length - 1)]
+  return (
+    <details className="callout map" open>
+      <summary>🗺️ Where is it in App Inventor?</summary>
+      {targets.length > 1 && (
+        <div className="row" style={{ gap: 6, margin: '8px 0' }}>
+          {targets.map((x, k) => (
+            <button key={k} className={`small ${k === i ? 'gold' : ''}`} aria-pressed={k === i} onClick={() => setI(k)}>
+              {targetLabel(x).split(' (')[0]}
+            </button>
+          ))}
+        </div>
+      )}
+      <AiMap target={t} />
+      <p className="small muted" style={{ margin: '4px 0 0' }}>
+        Simplified drawing. Your App Inventor may look a little different, but things are in the same places.
+      </p>
+    </details>
   )
 }

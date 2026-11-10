@@ -1597,3 +1597,21 @@ details.more[open] > summary::before {
     font-size: 2.2em;
   }
 }
+
+.callout.map {
+  background: #f4f7fb;
+}
+.aimap {
+  margin: 8px 0 0;
+}
+.aimap svg {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  border-radius: 10px;
+}
+.aimap figcaption {
+  margin-top: 6px;
+  font-weight: 700;
+}

@@ -62,6 +62,7 @@ export function ClassroomTab({ data }: { data: Data }) {
   const [msg, setMsg] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [points, setPoints] = useState(100)
+  const [pointsBy, setPointsBy] = useState<Record<string, number>>({})
   const [publish, setPublish] = useState(false)
 
   if (!backend.classroom) return <div className="card">Google Classroom works in the Google Apps Script version (see DEPLOY.md).</div>
@@ -165,7 +166,8 @@ export function ClassroomTab({ data }: { data: Data }) {
         </div>
         <p className="small muted">
           Each assignment gets the lesson summary and an "Open in AppVenture" link straight to the lesson, under an "AppVenture" topic. Make assignments for
-          the lessons every company does; for branch lessons, make only the ones your companies picked.
+          the lessons every company does; for branch lessons, make only the ones your companies picked. Each selected lesson gets its own points box.
+          Points can't be changed here after an assignment is created; change them in Classroom (grades then scale to the new total next time you send).
         </p>
         <div className="table-wrap">
           <table className="list">
@@ -189,6 +191,19 @@ export function ClassroomTab({ data }: { data: Data }) {
                         {TRACK_INFO[l.track].label}
                       </span>
                     </td>
+                    <td style={{ width: 120 }}>
+                      {!cw && selected.includes(l.id) && (
+                        <input
+                          type="number"
+                          min={1}
+                          max={1000}
+                          value={pointsBy[l.id] ?? points}
+                          onChange={(e) => setPointsBy({ ...pointsBy, [l.id]: Math.max(1, Number(e.target.value) || points) })}
+                          style={{ width: 90 }}
+                          aria-label={`Points for ${l.title}`}
+                        />
+                      )}
+                    </td>
                     <td className="small">
                       {cw ? (
                         <a href={cw.link} target="_blank" rel="noreferrer">
@@ -206,7 +221,7 @@ export function ClassroomTab({ data }: { data: Data }) {
         </div>
         <div className="row" style={{ marginTop: 14 }}>
           <label className="row small" style={{ gap: 6, fontWeight: 800 }}>
-            Points each
+            Default points
             <input type="number" min={1} max={1000} value={points} onChange={(e) => setPoints(Number(e.target.value) || 100)} style={{ width: 90 }} />
           </label>
           <label className="row small" style={{ gap: 6, fontWeight: 800 }}>
@@ -218,7 +233,7 @@ export function ClassroomTab({ data }: { data: Data }) {
             disabled={busy || !selected.length}
             onClick={() =>
               void run(async () => {
-                const items = LESSONS_IN_ORDER.filter((l) => selected.includes(l.id)).map((l) => assignmentFor(l, points))
+                const items = LESSONS_IN_ORDER.filter((l) => selected.includes(l.id)).map((l) => assignmentFor(l, pointsBy[l.id] ?? points))
                 const r = await backend.classroom!.createAssignments(cls.id, items, publish)
                 const bad = r.filter((x) => !x.ok)
                 setSelected([])

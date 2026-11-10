@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import type { Company } from '../types'
+import type { ClassSettings, Company } from '../types'
+import { xpOf } from '../lib/xp'
 import { BRANCHES, TREE } from '../curriculum/tree'
 import { TRACK_INFO, getLesson } from '../curriculum'
 import { STATUS_LABEL, type CompanyProgress, type NodeStatus } from '../lib/progress'
@@ -29,6 +30,8 @@ export interface TreeProps {
   /** Teacher view: how many companies completed each lesson. */
   showCounts?: boolean
   onSelect?: (lessonId: string) => void
+  /** This class's XP values (from class settings). */
+  settings?: ClassSettings | null
 }
 
 const curve = (x1: number, y1: number, x2: number, y2: number) => {
@@ -36,7 +39,7 @@ const curve = (x1: number, y1: number, x2: number, y2: number) => {
   return `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`
 }
 
-export function Tree({ companies, progress, viewerCompanyId, showCounts, onSelect }: TreeProps) {
+export function Tree({ companies, progress, viewerCompanyId, showCounts, onSelect, settings }: TreeProps) {
   const viewer = viewerCompanyId ? progress.get(viewerCompanyId) : undefined
   const viewerCompany = companies.find((c) => c.id === viewerCompanyId)
   const status = (id: string): NodeStatus | null => viewer?.lessons[id]?.status ?? null
@@ -184,7 +187,7 @@ export function Tree({ companies, progress, viewerCompanyId, showCounts, onSelec
           const fill = st === null || st === 'complete' || !locked ? color : 'var(--panel-2)'
           const r = n.optional ? R - 6 : R
           const count = showCounts ? completedCount(n.lessonId) : 0
-          const sub = st ? STATUS_LABEL[st] : n.optional ? 'Optional side quest' : `${lesson.xp.quiz + lesson.xp.build} XP`
+          const sub = st ? STATUS_LABEL[st] : n.optional ? 'Optional side quest' : `${xpOf(lesson, settings).quiz + xpOf(lesson, settings).build} XP`
           return (
             <g
               key={n.lessonId}
