@@ -27,6 +27,7 @@ function doGet() {
   var html = loadBundle_()
   return HtmlService.createHtmlOutput(html)
     .setTitle('AppVenture')
+    .setFaviconUrl(BUNDLE_URL.replace(/index\.html$/, 'favicon.png'))
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
 }
