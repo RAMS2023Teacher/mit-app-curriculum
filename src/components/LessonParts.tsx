@@ -81,7 +81,7 @@ export function StepView({
           <span className="t">{/^done when/i.test(step.check) ? '🏁 Done when…' : '✅ Test now'}</span>
           {step.check.replace(/^(test now|done when)[:.…\s-]*/i, '').replace(/^./, (c) => c.toUpperCase())}
           {onTested && (
-            <label className="tested" id="tested-box">
+            <label className="tested" id="tested-box" data-nudge={tested ? undefined : 'Test your app, then tick this box'}>
               <input type="checkbox" checked={!!tested} onChange={(e) => onTested(e.target.checked)} />
               {/^done when/i.test(step.check) ? 'We did it' : 'I tested it and it works'}
             </label>

@@ -3,6 +3,7 @@ import { usePlayer } from '../game/hooks'
 import { MANIFEST } from '../game/manifest'
 import { levelOf, spendable } from '../game/rules.js'
 import { setSound, soundOn } from '../lib/fx'
+import { startNudges } from '../lib/nudge'
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { backend, demo } from '../data'
@@ -15,6 +16,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const loc = useLocation()
   const classId = loc.pathname.match(/^\/class\/([^/]+)/)?.[1]
+  // Idle hints are for students only (teachers would only see them in a student view).
+  const isStudent = user?.role === 'student' || (!!user && !user.role)
+  useEffect(() => {
+    if (!isStudent) return
+    return startNudges({
+      report: (idle) => {
+        const cid = window.location.hash.match(/^#\/class\/([^/]+)/)?.[1]
+        if (cid && backend.help) void backend.help.idle(cid, idle)
+      },
+    })
+  }, [isStudent])
   // The projector Class Screen uses the whole display: no menu, no demo bar.
   if (/^\/class\/[^/]+\/screen$/.test(loc.pathname)) return <main>{children}</main>
   return (

@@ -155,7 +155,14 @@ function sheet_() {
  * the list of record names (column A) once, then one cell per record.
  */
 function Store_() {
-  var sh = sheet_()
+  // The sheet is opened only when a record is actually needed, so cache-only requests stay cheap.
+  var opened = null
+  var sh = {
+    getLastRow: function () { return (opened = opened || sheet_()).getLastRow() },
+    getRange: function (a, b, c, d) { return (opened = opened || sheet_()).getRange(a, b, c, d) },
+    appendRow: function (r) { return (opened = opened || sheet_()).appendRow(r) },
+    deleteRow: function (r) { return (opened = opened || sheet_()).deleteRow(r) },
+  }
   var rowOf = null
   var memo = {}
   var touched = []
@@ -631,6 +638,28 @@ function manifest_() {
   return m
 }
 
+// Help requests: one small record per class (help/<class>), mirrored in the cache so polling doesn't read the sheet.
+var HELP_TTL_MS = 60 * 60 * 1000
+
+function helpLive_(doc) {
+  var now = Date.now()
+  var out = { reqs: {} }
+  for (var k in doc.reqs || {}) if (now - doc.reqs[k].at < HELP_TTL_MS) out.reqs[k] = doc.reqs[k]
+  return out
+}
+function helpGet_(db, cid) {
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('help:' + cid)
+  if (hit) return JSON.parse(hit)
+  var doc = db.get('help/' + cid) || { reqs: {} }
+  cache.put('help:' + cid, JSON.stringify(doc), 600)
+  return doc
+}
+function helpSave_(db, cid, doc) {
+  db.set('help/' + cid, doc)
+  CacheService.getScriptCache().put('help:' + cid, JSON.stringify(doc), 600)
+}
+
 function player_(db, cid, uid) {
   return db.get('players/' + cid + '/' + uid) || Game.newPlayer(uid)
 }
@@ -738,6 +767,8 @@ var MODES_ = {
   myClasses: 'read',
   dataInfo: 'read',
   player: 'read',
+  desk: 'read',
+  idle: 'read',
   crListCourses: 'read',
   backupNow: 'slow',
   crImportCourse: 'slow',
@@ -1066,6 +1097,80 @@ var API_ = {
       db.set('companies/' + cid + '/' + coid, co)
     }
     return game
+  },
+
+  // ------------------------------------------------------------ help requests and idle
+
+  /** ✋ "I'm stuck". One request per student; it expires after an hour. */
+  helpAsk: function (db, me, email, cid, where, note) {
+    var member = db.get('members/' + cid + '/' + me)
+    assert_(member, 'You are not in this class.')
+    where = where || {}
+    var player = player_(db, cid, me)
+    // Count requests per lesson step (for the lesson feedback report). No names are kept with the counts.
+    var lesson = clean_(where.lesson, 40)
+    if (lesson) {
+      player.fb = player.fb || {}
+      var fb = (player.fb[lesson] = player.fb[lesson] || {})
+      fb.help = fb.help || {}
+      var stepKey = clean_(where.step == null ? where.stage : 'step:' + where.step, 20) || 'lesson'
+      fb.help[stepKey] = (fb.help[stepKey] || 0) + 1
+      db.set('players/' + cid + '/' + me, player)
+    }
+    var doc = helpLive_(db.get('help/' + cid) || { reqs: {} })
+    doc.reqs[me] = {
+      uid: me,
+      name: member.name,
+      companyId: member.companyId || null,
+      at: Date.now(),
+      where: clean_(where.label, 120),
+      note: clean_(note, 140),
+      avatar: player.avatar || {},
+    }
+    helpSave_(db, cid, doc)
+    return doc.reqs[me]
+  },
+
+  /** "I figured it out": the student cancels their own request. */
+  helpCancel: function (db, me, email, cid) {
+    var doc = helpLive_(db.get('help/' + cid) || { reqs: {} })
+    if (doc.reqs[me]) {
+      delete doc.reqs[me]
+      helpSave_(db, cid, doc)
+    }
+  },
+
+  /** "✓ Helped": the teacher clears a request. */
+  helpDone: function (db, me, email, cid, uid) {
+    assert_(isTeacherOf_(db, me, cid), 'Only the teacher can mark a request as helped.')
+    var doc = helpLive_(db.get('help/' + cid) || { reqs: {} })
+    if (doc.reqs[uid]) {
+      delete doc.reqs[uid]
+      helpSave_(db, cid, doc)
+    }
+  },
+
+  /** Polled by the class display (every 10 s) and by a waiting student (every 30 s). Normally answered from the cache. */
+  desk: function (db, me, email, cid) {
+    var b = classBundle_(cid)
+    assert_(b.cls, 'Class not found.')
+    var doc = helpLive_(helpGet_(db, cid))
+    if (b.cls.teacherId !== me) return { mine: doc.reqs[me] || null }
+    var keys = b.members.map(function (m) { return 'idle:' + cid + ':' + m.uid })
+    var idle = keys.length ? CacheService.getScriptCache().getAll(keys) : {}
+    return {
+      help: Object.keys(doc.reqs).map(function (k) { return doc.reqs[k] }).sort(function (x, y) { return x.at - y.at }),
+      idle: Object.keys(idle).map(function (k) { return k.split(':')[2] }),
+    }
+  },
+
+  /** A student's page reports "idle" after 2 quiet minutes, and "back" when they act. Cache only: no saves, no lock. */
+  idle: function (db, me, email, cid, on) {
+    var b = classBundle_(cid)
+    assert_(b.members.some(function (m) { return m.uid === me }), 'You are not in this class.')
+    var cache = CacheService.getScriptCache()
+    if (on) cache.put('idle:' + cid + ':' + me, '1', 300) // forgotten after 5 minutes, so a closed laptop doesn't stay marked
+    else cache.remove('idle:' + cid + ':' + me)
   },
 
   /** A student's own game record (XP, level, badges, purchases, avatar). */

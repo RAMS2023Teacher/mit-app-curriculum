@@ -17,7 +17,7 @@ export function RoleSelect() {
       <h1>Welcome to AppVenture!</h1>
       <label className="field">
         <span>Your first name and last initial (classmates see this)</span>
-        <input value={name} maxLength={24} placeholder="e.g. Ava R." onChange={(e) => setName(e.target.value)} />
+        <input value={name} maxLength={24} data-nudge={name.trim() ? undefined : 'Type your first name and last initial'} placeholder="e.g. Ava R." onChange={(e) => setName(e.target.value)} />
         <span className="small muted" style={{ fontWeight: 600 }}>
           Don't use your full name or anything private.
         </span>

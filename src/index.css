@@ -1882,3 +1882,144 @@ button.ready-pop {
   font-size: 1.1rem;
   padding: 2px 6px;
 }
+
+/* ---------- help requests and idle hints ---------- */
+.help-box {
+  padding: 14px;
+}
+.help-box.waiting {
+  background: linear-gradient(180deg, #fff9df, #ffe48a);
+}
+.help-button {
+  width: 100%;
+  justify-content: center;
+  --b: #fff;
+  --b2: #ffe9ec;
+}
+@keyframes nudgeglow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 201, 40, 0.9), 0 0 0 0 rgba(255, 201, 40, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 201, 40, 0.9), 0 0 0 14px rgba(255, 201, 40, 0.25);
+  }
+}
+.nudge-glow {
+  animation: nudgeglow 1.4s ease-in-out infinite;
+  border-radius: 14px;
+}
+.nudge-glow.nudge-strong {
+  animation-duration: 0.8s;
+  outline: 4px solid var(--gold);
+  outline-offset: 3px;
+}
+.nudge-glow.nudge-still {
+  animation: none;
+  outline: 4px solid var(--gold);
+  outline-offset: 3px;
+}
+.nudge-bubble {
+  position: fixed;
+  z-index: 110;
+  max-width: min(320px, calc(100vw - 16px));
+  background: var(--ink);
+  color: #fff;
+  border: 3px solid #0e1440;
+  border-radius: 14px;
+  padding: 8px 14px;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(14, 20, 64, 0.35);
+  cursor: pointer;
+}
+.nudge-bubble.docked {
+  bottom: 70px;
+  transform: translateX(-50%);
+}
+.nudge-more {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffe066;
+}
+.nudge-more:empty {
+  display: none;
+}
+
+.help-alert {
+  --b: #ff7583;
+  --b2: var(--bad);
+  --fg: #fff;
+  text-shadow: 0 2px 0 var(--bad-edge);
+  animation: pulse-red 1.2s ease-in-out infinite;
+}
+@keyframes pulse-red {
+  0%,
+  100% {
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.12), 0 4px 0 var(--outline), 0 0 0 0 rgba(226, 57, 75, 0.7);
+  }
+  50% {
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.12), 0 4px 0 var(--outline), 0 0 0 10px rgba(226, 57, 75, 0);
+  }
+}
+.idle-count {
+  font-weight: 900;
+  color: #c9d3ff;
+  white-space: nowrap;
+}
+.race-crew {
+  display: flex;
+  gap: 5px;
+  margin-top: 3px;
+}
+.crew {
+  position: relative;
+  display: inline-block;
+  border-radius: 8px;
+}
+.crew svg {
+  border-radius: 7px;
+}
+.crew i {
+  position: absolute;
+  top: -9px;
+  right: -8px;
+  font-style: normal;
+  font-size: 0.85em;
+}
+.crew.help {
+  outline: 3px solid var(--bad);
+  outline-offset: 1px;
+}
+.crew.help i {
+  animation: bob 0.8s ease-in-out infinite;
+}
+.crew.idle svg {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.screen-help-list {
+  background: var(--bad-soft);
+}
+.help-row-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 2px solid #ffc2c9;
+}
+.help-row-item:last-child {
+  border-bottom: none;
+}
+.help-note {
+  font-style: italic;
+}
+/* Long class names shrink to one line and never push the board down. */
+.screen-class {
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: clamp(1em, 1.9vw, 1.7em);
+}
+.screen-class > span:last-child,
+.screen-class {
+  text-overflow: ellipsis;
+}

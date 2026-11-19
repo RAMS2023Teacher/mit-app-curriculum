@@ -90,12 +90,12 @@ export function StudentDashboard({ data }: { data: Data }) {
             <div style={{ fontWeight: 800 }}>{forkId ? 'Pick your path!' : next ? `Build: ${next.project.name}` : 'You finished the whole tree!'}</div>
           </div>
           {forkId ? (
-            <Link className="btn gold big" to={`/class/${cls!.id}/tree`}>
+            <Link className="btn gold big" to={`/class/${cls!.id}/tree`} data-nudge="Choose your path">
               Choose 🔀
             </Link>
           ) : (
             next && (
-              <Link className="btn go big" to={`/class/${cls!.id}/lesson/${next.id}`}>
+              <Link className="btn go big" to={`/class/${cls!.id}/lesson/${next.id}`} data-nudge="Start your next mission">
                 {nextStatus === 'available' ? 'PLAY ▶' : 'GO ▶'}
               </Link>
             )

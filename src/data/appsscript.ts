@@ -117,6 +117,7 @@ function call<T>(method: string, ...args: unknown[]): Promise<T> {
 const requestId = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36)
 
 import type { GameResult, Player, PlayerCard } from '../game/types'
+import type { HelpRequest } from '../types'
 
 interface Snapshot {
   players?: PlayerCard[]
@@ -284,6 +285,29 @@ export function createAppsScriptBackend(): Backend {
       if (r?.player) playerOf(cid).set(r.player)
       return r
     },
+    help: (() => {
+      // One poll per class and role: the server answers a teacher with the whole desk, a student with their own request.
+      type Answer = { mine?: HelpRequest | null; help?: HelpRequest[]; idle?: string[] }
+      const stores = new Map<string, Polled<Answer>>()
+      const desk = (cid: string, every: number) => {
+        const k = cid + ':' + every
+        let s = stores.get(k)
+        if (!s) stores.set(k, (s = new Polled<Answer>(() => call<Answer>('desk', cid), every)))
+        return s
+      }
+      const after = async (cid: string, p: Promise<unknown>) => {
+        await p
+        await Promise.all([...stores.entries()].filter(([k]) => k.startsWith(cid + ':')).map(([, s]) => s.refresh()))
+      }
+      return {
+        watchMine: (cid, cb) => desk(cid, 30_000).subscribe((a) => cb(a.mine ?? null)),
+        watchDesk: (cid, cb) => desk(cid, 10_000).subscribe((a) => cb({ help: a.help ?? [], idle: a.idle ?? [] })),
+        ask: (cid, where, note) => after(cid, call('helpAsk', cid, where, note)),
+        cancel: (cid) => after(cid, call('helpCancel', cid)),
+        done: (cid, uid) => after(cid, call('helpDone', cid, uid)),
+        idle: (cid, on) => call<void>('idle', cid, on).catch(() => undefined),
+      }
+    })(),
     game: {
       watchPlayer: (cid, cb) => playerOf(cid).subscribe(cb),
       watchPlayers: (cid, cb) => watchSnap(cid, (s) => s.players ?? [], cb),

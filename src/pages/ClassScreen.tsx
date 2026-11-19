@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { backend } from '../data'
+import { useWatch } from '../data/hooks'
+import { usePlayers } from '../game/hooks'
+import { Buddy } from '../components/Buddy'
+import { sfx } from '../lib/fx'
+import type { Desk } from '../types'
 import { useClassData } from '../data/hooks'
 import type { ClassBoard, Company } from '../types'
 import { getLesson } from '../curriculum'
@@ -31,6 +36,20 @@ export function ClassScreen() {
   const [editing, setEditing] = useState(false)
   const [reveal, setReveal] = useState(false)
   const board = data.cls?.board ?? EMPTY_BOARD
+  // ✋ help requests and 💤 idle students (checked every 10 seconds).
+  const desk = useWatch<Desk>(classId && backend.help && data.isTeacher ? (cb) => backend.help!.watchDesk(classId, cb) : null, [classId, data.isTeacher])
+  const cards = usePlayers(backend.game ? classId : undefined)
+  const helpRef = useRef<HTMLElement>(null)
+  const seen = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (!desk) return
+    const now = new Set(desk.help.map((h) => h.uid + ':' + h.at))
+    // Ring the doorbell (twice) for each request that wasn't there a moment ago. Not on first load.
+    if (seen.current && [...now].some((k) => !seen.current!.has(k))) sfx.doorbell()
+    seen.current = now
+  }, [desk])
+  const needHelp = new Set((desk?.help ?? []).map((h) => h.uid))
+  const idle = new Set((desk?.idle ?? []).filter((u) => !needHelp.has(u)))
 
   const companies = useMemo(
     () => [...(data.companies ?? [])].sort((a, b) => (data.progress.get(b.id)?.xp ?? 0) - (data.progress.get(a.id)?.xp ?? 0)),
@@ -123,6 +142,17 @@ export function ClassScreen() {
           )}
         </div>
         <div className="row screen-controls">
+          {needHelp.size > 0 && (
+            <button className="help-alert" onClick={() => helpRef.current?.scrollIntoView({ block: 'center' })}>
+              ✋ {needHelp.size} need{needHelp.size === 1 ? 's' : ''} help
+            </button>
+          )}
+          {idle.size > 0 && <span className="idle-count">💤 {idle.size} idle</span>}
+          {backend.help && (
+            <button className="small" onClick={() => sfx.doorbell()} title="Play a test doorbell. Also turns sound on for this computer." aria-label="Test the help doorbell">
+              🔔
+            </button>
+          )}
           <button className="small" onClick={() => setEditing(!editing)} aria-pressed={editing}>
             ⚙ {editing ? 'Done' : 'Edit'}
           </button>
@@ -193,6 +223,17 @@ export function ClassScreen() {
                     <div style={{ minWidth: 0 }}>
                       <div className="race-co">{c.name}</div>
                       <div className="race-now">{pos}</div>
+                      {backend.game && (
+                        <div className="race-crew">
+                          {c.memberIds.map((uid) => (
+                            <span key={uid} className={`crew ${needHelp.has(uid) ? 'help' : idle.has(uid) ? 'idle' : ''}`} title={c.memberNames[uid]}>
+                              <Buddy avatar={cards?.find((x) => x.uid === uid)?.avatar} size={26} title={c.memberNames[uid]} />
+                              {needHelp.has(uid) && <i>✋</i>}
+                              {idle.has(uid) && <i>💤</i>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="race-track">
@@ -228,6 +269,28 @@ export function ClassScreen() {
           )}
         </section>
 
+        <section className="screen-col">
+          {(desk?.help.length ?? 0) > 0 && (
+            <section className="card screen-help-list" ref={helpRef}>
+              <div className="screen-label">✋ Needs help</div>
+              {desk!.help.map((h) => (
+                <div key={h.uid} className="help-row-item">
+                  <Buddy avatar={h.avatar} size={38} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="win-text" translate="no">
+                      {h.name}
+                    </div>
+                    <div className="small">{h.where}</div>
+                    {h.note && <div className="small help-note">“{h.note}”</div>}
+                    <div className="small muted">{timeAgo(h.at)}</div>
+                  </div>
+                  <button className="small good" onClick={() => void backend.help!.done(data.cls!.id, h.uid)}>
+                    ✓ Helped
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
         <section className="card screen-wins">
           <div className="screen-label">🎉 Recent wins</div>
           {wins.length === 0 && <p className="muted">Wins show up here as students pass quizzes and ship builds.</p>}
@@ -241,6 +304,7 @@ export function ClassScreen() {
               </div>
             </div>
           ))}
+        </section>
         </section>
       </div>
     </div>

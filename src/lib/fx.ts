@@ -63,6 +63,8 @@ export const sfx = {
   buy: () => run([[1568, 0, 0.07, 'square'], [2093, 0.07, 0.07, 'square'], [1047, 0.16, 0.3, 'triangle']]),
   buzz: () => run([[110, 0, 0.22, 'sawtooth'], [98, 0.05, 0.2, 'sawtooth']]),
   ready: () => run([[784, 0, 0.08], [1175, 0.08, 0.2]]),
+  /** Ding-dong, twice. */
+  doorbell: () => run([[659, 0, 0.35, 'sine'], [523, 0.32, 0.5, 'sine'], [659, 1.0, 0.35, 'sine'], [523, 1.32, 0.5, 'sine']]),
 }
 
 function el(tag: string, cls: string, text = '') {

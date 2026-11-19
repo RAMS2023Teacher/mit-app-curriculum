@@ -1,4 +1,4 @@
-import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassroomCourse, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
+import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassroomCourse, Desk, HelpRequest, HelpWhere, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
 import type { GameEvent, GameResult, Player, PlayerCard } from '../game/types'
 
 export type Unsub = () => void
@@ -58,6 +58,9 @@ export interface Backend {
   /** Approved builds for every company in the class (drives XP, tree and leaderboard). */
   watchApprovals(classId: string, cb: (a: Approval[]) => void): Unsub
 
+  /** ✋ Help requests and idle markers (not in the Firebase version). */
+  help?: HelpApi
+
   /** Personal XP, levels, badges, shop and avatar (not in the Firebase version). */
   game?: GameApi
 
@@ -106,6 +109,18 @@ export const isBetter = (prev: QuizResult | undefined, next: QuizResult) => {
   if (next.excused) return !prev.excused && prev.score / Math.max(1, prev.total) < 0.7
   if (prev.excused) return true
   return next.score / next.total >= prev.score / prev.total
+}
+
+export interface HelpApi {
+  /** The student's own request (checked every 30 s). */
+  watchMine(classId: string, cb: (r: HelpRequest | null) => void): Unsub
+  /** Teacher: everyone who needs help or is idle (checked every 10 s). */
+  watchDesk(classId: string, cb: (d: Desk) => void): Unsub
+  ask(classId: string, where: HelpWhere, note: string): Promise<void>
+  cancel(classId: string): Promise<void>
+  done(classId: string, uid: string): Promise<void>
+  /** A student's page says it has been quiet for 2 minutes (true) or is active again (false). */
+  idle(classId: string, on: boolean): Promise<void>
 }
 
 export interface GameApi {

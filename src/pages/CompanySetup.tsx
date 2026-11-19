@@ -42,6 +42,7 @@ export function CompanySetup({ cls }: { cls: ClassRoom }) {
                 maxLength={28}
                 value={name}
                 placeholder="e.g. Pixel Pirates"
+                data-nudge={name.trim() ? undefined : 'Type a name for your company'}
                 onChange={(e) => {
                   setName(e.target.value)
                   if (!logo.initials || logo.initials === initials(name)) setLogo({ ...logo, initials: initials(e.target.value) })
@@ -55,7 +56,7 @@ export function CompanySetup({ cls }: { cls: ClassRoom }) {
           </div>
           <h3>Design your logo</h3>
           <LogoEditor value={logo} onChange={setLogo} />
-          <button className="go big" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
+          <button className="go big" disabled={busy || !name.trim()} style={{ marginTop: 16 }} data-nudge={name.trim() ? 'Happy with your logo? Start your company' : undefined}>
             🚀 Found {name.trim() || 'my company'}
           </button>
           {error && <p className="error">{error}</p>}

@@ -278,3 +278,28 @@ export interface Approval {
   bonus: boolean
   at: number
 }
+
+/** ✋ "I'm stuck": one live request per student, gone after an hour. No emails. */
+export interface HelpRequest {
+  uid: string
+  name: string
+  companyId: string | null
+  at: number
+  /** Exact place, e.g. "Loops & Timers · Step 5: The timer loop" */
+  where: string
+  note: string
+  avatar: Record<string, string>
+}
+
+/** What the class display polls: who needs help and who has gone quiet. */
+export interface Desk {
+  help: HelpRequest[]
+  idle: string[]
+}
+
+export interface HelpWhere {
+  lesson: string
+  stage: string
+  step?: number
+  label: string
+}

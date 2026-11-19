@@ -4,7 +4,7 @@ import { getLesson } from '../curriculum'
 import { MANIFEST } from '../game/manifest'
 import { applyEvent, buy as buyItem, newPlayer, setAvatar } from '../game/rules.js'
 import type { GameOutcome, GameResult, Player } from '../game/types'
-import type { QuizResult } from '../types'
+import type { HelpRequest, QuizResult } from '../types'
 
 /** Demo backend: everything lives in this browser's localStorage. Open two tabs
  *  (one as the teacher, one as a student) and they stay in sync. */
@@ -17,11 +17,13 @@ interface DB {
   companies: Record<string, Record<string, Company>>
   submissions: Record<string, Record<string, Submission>>
   players: Record<string, Record<string, Player>>
+  help: Record<string, Record<string, HelpRequest>>
+  idle: Record<string, Record<string, number>>
 }
 
 const KEY = 'appventure-demo-db'
 const SESSION_KEY = 'appventure-demo-user'
-const VERSION = 4
+const VERSION = 5
 
 const id = () => Math.random().toString(36).slice(2, 10)
 
@@ -84,6 +86,8 @@ export function createLocalBackend(): DemoBackend {
     return () => listeners.delete(run)
   }
 
+  const liveHelp = (classId: string) =>
+    Object.fromEntries(Object.entries(db.help?.[classId] ?? {}).filter(([, r]) => Date.now() - r.at < 3_600_000))
   const playerOf = (classId: string, uid: string): Player => ((db.players[classId] ??= {})[uid] ??= newPlayer(uid))
   const mergeOuts = (p: Player, outs: GameOutcome[]): GameResult => ({
     player: structuredClone(p),
@@ -264,6 +268,51 @@ export function createLocalBackend(): DemoBackend {
       if (isBetter(byUser[uid], saved)) byUser[uid] = saved
       save()
       return game
+    },
+    help: {
+      watchMine(classId, cb) {
+        return watch(() => (currentUid ? (liveHelp(classId)[currentUid] ?? null) : null), cb)
+      },
+      watchDesk(classId, cb) {
+        return watch(
+          () => ({
+            help: Object.values(liveHelp(classId)).sort((a, b) => a.at - b.at),
+            idle: Object.entries(db.idle?.[classId] ?? {})
+              .filter(([, at]) => Date.now() - at < 300_000)
+              .map(([uid]) => uid),
+          }),
+          cb,
+        )
+      },
+      async ask(classId, where, note) {
+        const u = me()
+        const m = db.members[classId][u.uid]
+        ;((db.help ??= {})[classId] ??= {})[u.uid] = {
+          uid: u.uid,
+          name: u.name,
+          companyId: m?.companyId ?? null,
+          at: Date.now(),
+          where: where.label.slice(0, 120),
+          note: note.slice(0, 140),
+          avatar: db.players[classId]?.[u.uid]?.avatar ?? {},
+        }
+        save()
+      },
+      async cancel(classId) {
+        delete db.help?.[classId]?.[me().uid]
+        save()
+      },
+      async done(classId, uid) {
+        delete db.help?.[classId]?.[uid]
+        save()
+      },
+      async idle(classId, on) {
+        const uid = me().uid
+        const map = ((db.idle ??= {})[classId] ??= {})
+        if (on) map[uid] = Date.now()
+        else delete map[uid]
+        save()
+      },
     },
     game: {
       watchPlayer(classId, cb) {
@@ -470,7 +519,7 @@ function safeGet(k: string) {
 function seed(): DB {
   const day = 86_400_000
   const now = Date.now()
-  const db: DB = { version: VERSION, users: {}, classes: {}, members: {}, companies: {}, submissions: {}, players: { 'demo-class': {} } }
+  const db: DB = { version: VERSION, users: {}, classes: {}, members: {}, companies: {}, submissions: {}, players: { 'demo-class': {} }, help: {}, idle: {} }
   const teacher: UserProfile = { uid: 'demo-teacher', name: 'Demo Teacher', role: 'teacher', classIds: ['demo-class'] }
   db.users[teacher.uid] = teacher
   db.classes['demo-class'] = {
@@ -666,5 +715,17 @@ function seed(): DB {
     t += day / 2
   }
   student('s-riley', 'Riley', null)
+  db.help['demo-class'] = {
+    's-eli': {
+      uid: 's-eli',
+      name: 'Eli',
+      companyId: 'co-byte',
+      at: now - 3 * 60_000,
+      where: 'Loops & Timers · Step 3: The timer loop',
+      note: 'Our countdown goes below zero',
+      avatar: db.players['demo-class']['s-eli']?.avatar ?? {},
+    },
+  }
+  db.idle['demo-class'] = { 's-jordan': now }
   return db
 }

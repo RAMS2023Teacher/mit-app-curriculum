@@ -8,7 +8,7 @@ const crypto = require('crypto')
 function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
   const fail = { open: 0, props: 0, names: 0, cell: 0, write: 0, append: 0, lock: 0, copy: 0, fetch: 0 }
   const count = { creates: 0, opens: 0, nameReads: 0, cellReads: 0, spanReads: 0, writes: 0, appends: 0, deletes: 0, fetches: 0 }
-  const state = { email: '', today: '2026-11-19', spreadsheets: {}, props: {}, cache: new Map(), nextId: 1 }
+  const state = { email: '', today: '2026-11-19', spreadsheets: {}, props: {}, cache: new Map(), nextId: 1, offset: 0 }
   const maybeFail = (k, what) => {
     if (fail[k] > 0) {
       fail[k]--
@@ -50,11 +50,14 @@ function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
     return ss
   }
 
+  // The cache honours expiry times against the mock clock (mock.advance(ms) moves time forward).
+  const now = () => Date.now() + state.offset
+  const live = (k) => { const e = state.cache.get(k); if (!e) return false; if (e.until && e.until < now()) { state.cache.delete(k); return false } return true }
   const cacheApi = {
-    get: (k) => (state.cache.has(k) ? state.cache.get(k) : null),
-    put: (k, v) => { state.cache.set(k, String(v)) },
-    getAll: (keys) => Object.fromEntries(keys.filter((k) => state.cache.has(k)).map((k) => [k, state.cache.get(k)])),
-    putAll: (o) => { for (const k in o) state.cache.set(k, String(o[k])) },
+    get: (k) => (live(k) ? state.cache.get(k).v : null),
+    put: (k, v, ttl) => { state.cache.set(k, { v: String(v), until: ttl ? now() + ttl * 1000 : 0 }) },
+    getAll: (keys) => Object.fromEntries(keys.filter(live).map((k) => [k, state.cache.get(k).v])),
+    putAll: (o, ttl) => { for (const k in o) cacheApi.put(k, o[k], ttl) },
     remove: (k) => { state.cache.delete(k) },
   }
   const ctx = {
@@ -86,6 +89,8 @@ function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
     },
   }
   vm.createContext(ctx)
+  ctx.__clock = state
+  vm.runInContext('var __realNow = Date.now; Date.now = function () { return __realNow() + __clock.offset }', ctx)
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx)
 
   const mock = {
@@ -101,6 +106,8 @@ function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
     row(pathName) { const r = mock.rows().find((x) => x[0] === pathName); return r ? r[1] : undefined },
     resetCounts() { for (const k in count) count[k] = 0 },
     clearCache() { state.cache.clear() },
+    /** Move the server's clock (and cache expiry) forward. */
+    advance(ms) { state.offset += ms },
   }
   return mock
 }

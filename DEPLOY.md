@@ -118,6 +118,20 @@ The rules live in `src/game/rules.js` and are copied into `Code.gs` by `npm run 
 keys and prices are in `apps-script/manifest.json`, which the server loads from GitHub, so lesson changes need no
 re-paste. Changes to the rules themselves do: paste the new `Code.gs` and deploy a new version.
 
+## Help requests and idle hints
+
+- **✋ I'm stuck.** Every lesson has an "I'm stuck: ask for help" button. The student can add a short note. Their box
+  turns yellow ("Help is on the way!") until you mark it helped or they press "I figured it out".
+- **On the Class Screen:** a doorbell rings twice for each new request, a red "✋ 2 need help" button pulses in the
+  header, the student's buddy gets a red outline and a ✋, and a **Needs help** list shows who, exactly where they are
+  (lesson and step), their note, and a **✓ Helped** button. Press 🔔 once on the projector computer to test the bell
+  and turn sound on. Requests expire after an hour.
+- **Idle hints.** After 45 quiet seconds, the next thing to do glows and a 👉 bubble says what it is. After 2 minutes
+  the hint gets stronger and points at the ✋ button too. It never asks for help on the student's behalf. Time spent in
+  another tab (such as App Inventor) does not count as idle.
+- **💤 on the Class Screen.** After 2 quiet minutes a student's buddy turns grey with 💤 and the header counts them.
+  This is kept only in a short-lived cache: nothing is saved, and it is forgotten after 5 minutes.
+
 ## Keeping student work safe
 
 The server follows these rules, and `npm test` checks each one:

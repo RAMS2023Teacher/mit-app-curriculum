@@ -23,8 +23,8 @@ export function JoinClass() {
     >
       <h2>Join a class</h2>
       <p className="muted">Enter the code your teacher gave you.</p>
-      <input className="code-input" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC123" aria-label="Class code" />
-      <button className="primary" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={busy || code.length < 6}>
+      <input className="code-input" maxLength={6} value={code} data-nudge={code.length < 6 ? 'Type the class code from your teacher' : undefined} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC123" aria-label="Class code" />
+      <button className="primary" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }} disabled={busy || code.length < 6} data-nudge={code.length < 6 ? undefined : 'Press Join class'}>
         Join class
       </button>
       {error && <p className="error">{error}</p>}

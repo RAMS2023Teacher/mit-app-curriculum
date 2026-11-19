@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { backend } from '../data'
 import { useAuth, useClassData } from '../data/hooks'
@@ -18,6 +18,7 @@ import { SpeakButton } from '../components/Speak'
 import { usePref } from '../lib/prefs'
 import { withXp } from '../lib/xp'
 import { LockedButton } from '../components/LockedButton'
+import { HelpBox } from '../components/HelpBox'
 import { usePlayer } from '../game/hooks'
 import { sfx, showGain } from '../lib/fx'
 import { alignmentFor, DISCUSS } from '../curriculum/alignment'
@@ -64,6 +65,7 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
   const progress = company ? data.progress.get(company.id)?.lessons[lesson.id] : undefined
   const [stage, setStage] = useState<Stage | null>(null)
   const [simple, setSimple] = usePref('simple', false)
+  const [stepAt, setStepAt] = useState(0)
   // Personal XP: only for a student working in their own class.
   const player = usePlayer(company ? classId : undefined)
   const game = company && classId ? backend.game : undefined
@@ -173,6 +175,7 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
                 earn({ t: 'step', lesson: lesson.id, i })
               }}
               onFinish={() => go('quiz')}
+              onStep={setStepAt}
             />
           )}
           {current === 'quiz' && (
@@ -226,6 +229,21 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
           <a className="btn go big" href={APP_INVENTOR_URL} target="_blank" rel="noreferrer" style={{ width: '100%', justifyContent: 'center' }}>
             🧰 Open App Inventor
           </a>
+          {company && classId && (
+            <HelpBox
+              classId={classId}
+              where={
+                current === 'build'
+                  ? {
+                      lesson: lesson.id,
+                      stage: 'build',
+                      step: stepAt,
+                      label: `${lesson.title} · ${stepAt < lesson.steps.length ? `Step ${stepAt + 1}: ${lesson.steps[stepAt].title}` : `Remix: ${lesson.remix?.title ?? ''}`}`,
+                    }
+                  : { lesson: lesson.id, stage: current, label: `${lesson.title} · ${{ brief: 'Mission', quiz: 'Quiz', submit: 'Ship it', build: 'Build' }[current]}` }
+              }
+            />
+          )}
           {starter && (
             <a className="btn" href={starter} target="_blank" rel="noreferrer" style={{ width: '100%', justifyContent: 'center' }}>
               📦 Starter project
@@ -285,7 +303,7 @@ function Brief({ lesson, onStart }: { lesson: Lesson; onStart: () => void }) {
             </span>
           ))}
         </div>
-        <button className="go big" onClick={onStart}>
+        <button className="go big" onClick={onStart} data-nudge="Press Start building">
           Start building ▶
         </button>
       </div>
@@ -342,18 +360,21 @@ function StepPlayer({
   done,
   onDone,
   onFinish,
+  onStep,
 }: {
   lesson: Lesson
   simple: boolean
   done: number[]
   onDone: (i: number) => void
   onFinish: () => void
+  onStep?: (i: number) => void
 }) {
   const count = lesson.steps.length + (lesson.remix ? 1 : 0)
   const firstOpen = Array.from({ length: count }, (_, k) => k).findIndex((k) => !done.includes(k))
   const [i, setI] = useState(firstOpen === -1 ? 0 : firstOpen)
   const isRemix = !!lesson.remix && i === lesson.steps.length
   const last = i === count - 1
+  useEffect(() => onStep?.(i), [i]) // eslint-disable-line react-hooks/exhaustive-deps
   // Steps with a "Test now" box wait for the student to tick that they tested.
   const [tested, setTested] = useState<number[]>([])
   const ready = isRemix || !lesson.steps[i].check || done.includes(i) || tested.includes(i)
@@ -397,6 +418,7 @@ function StepPlayer({
           className={last ? 'gold big' : 'go big'}
           ready={ready}
           missing='test your app, then tick "I tested it"'
+          nudge={last ? 'Finished? Go to the quiz' : 'Done with this step? Go to the next one'}
           target={() => document.getElementById('tested-box')}
           onClick={() => {
             onDone(i)
@@ -505,7 +527,7 @@ function Quiz({
         <div className="row" style={{ justifyContent: 'center' }}>
           <button onClick={restart}>↺ Try again</button>
           {passed && (
-            <button className="gold big" onClick={onNext}>
+            <button className="gold big" onClick={onNext} data-nudge="Next: ship your build">
               Ship your build 🚀
             </button>
           )}
@@ -538,7 +560,7 @@ function Quiz({
           {best !== null && ` · best ${best}%`}
         </span>
       </div>
-      <div key={q} className="pop" id="quiz-options">
+      <div key={q} className="pop" id="quiz-options" data-nudge={answered ? undefined : 'Pick an answer'}>
         <div className="spread" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
           <h2 style={{ fontSize: '1.45rem' }}>{item.q}</h2>
           <SpeakButton text={`${item.q} ${order[q].map((j, pos) => `${String.fromCharCode(65 + pos)}: ${item.options[j]}.`).join(' ')}`} />
@@ -564,6 +586,7 @@ function Quiz({
           className="go big"
           ready={answered}
           missing="pick an answer"
+          nudge={q < total - 1 ? 'Go to the next question' : 'See your score'}
           target={() => document.getElementById('quiz-options')}
           disabled={busy}
           onClick={() => {
@@ -705,6 +728,7 @@ function SubmitBuild({
           {mineApproved && <div className="alert good">✅ Approved! Did the bonus quest? Send the new version.</div>}
           <div
             className={`dropzone ${over ? 'over' : ''}`}
+            data-nudge={report || link.trim() ? undefined : 'Add your .aia file here'}
             onClick={() => fileRef.current?.click()}
             onDragOver={(e) => (e.preventDefault(), setOver(true))}
             onDragLeave={() => setOver(false)}
@@ -773,6 +797,7 @@ function SubmitBuild({
                   : 'tick the bonus quest box (your build is already approved)'
             }
             target={() => document.querySelector(!(report || link.trim()) ? '.dropzone' : !logOk ? '.callout.frames' : '#bonus-box')}
+            nudge="Send your build to your teacher"
             disabled={busy}
             onClick={async () => {
               const ok = await run(() =>

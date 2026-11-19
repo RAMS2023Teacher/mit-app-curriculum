@@ -13,6 +13,7 @@ export function LockedButton({
   className = '',
   children,
   disabled,
+  nudge,
 }: {
   ready: boolean
   /** What still has to be done, e.g. "pick an answer". Shown as "To go on: …". */
@@ -24,6 +25,8 @@ export function LockedButton({
   children: React.ReactNode
   /** Truly disabled (e.g. while saving). */
   disabled?: boolean
+  /** Idle hint shown when this button is the next thing to press (only while it is ready). */
+  nudge?: string
 }) {
   const [shake, setShake] = useState(false)
   const [pop, setPop] = useState(false)
@@ -52,7 +55,7 @@ export function LockedButton({
   }
   return (
     <span className="locked-wrap">
-      <button type="button" className={`${className} ${ready ? '' : 'locked'} ${shake ? 'shake' : ''} ${pop ? 'ready-pop' : ''}`} aria-disabled={!ready} disabled={disabled} onClick={click}>
+      <button type="button" className={`${className} ${ready ? '' : 'locked'} ${shake ? 'shake' : ''} ${pop ? 'ready-pop' : ''}`} aria-disabled={!ready} disabled={disabled} data-nudge={ready ? nudge : undefined} onClick={click}>
         {children}
       </button>
       {!ready && (

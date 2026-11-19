@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:appsscript": "tsc -b && npm run sync:server && vite build --mode appsscript && node scripts/inline.mjs dist-appsscript apps-script/index.html",
-    "test": "node --test tests/server.test.cjs tests/game.test.cjs",
+    "test": "node --test tests/server.test.cjs tests/game.test.cjs tests/help.test.cjs",
     "sync:server": "tsx scripts/sync-server.ts"
   },
   "dependencies": {
