@@ -12,8 +12,10 @@ export function Landing() {
         <h1 className="sky-title">Build apps. Level up.</h1>
         <p className="lead">Start a company with a partner, climb the skill tree, and ship real apps to your phone.</p>
         {backend.mode === 'appsscript' && (
-          <div className="alert bad" style={{ maxWidth: 560, margin: '0 auto' }}>
-            {backend.authProblem?.() || 'Loading your account…'}
+          <div className={`alert ${/very busy/.test(backend.authProblem?.() ?? '') ? 'warn' : 'bad'}`} style={{ maxWidth: 560, margin: '0 auto' }}>
+            {/very busy/.test(backend.authProblem?.() ?? '')
+              ? '⏳ The app is very busy right now. Your work is safe. Trying again in a few seconds…'
+              : backend.authProblem?.() || 'Loading your account…'}
           </div>
         )}
         {backend.mode === 'firebase' && (

@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "build:appsscript": "tsc -b && vite build --mode appsscript && node scripts/inline.mjs dist-appsscript apps-script/index.html"
+    "build:appsscript": "tsc -b && vite build --mode appsscript && node scripts/inline.mjs dist-appsscript apps-script/index.html",
+    "test": "node --test tests/server.test.cjs"
   },
   "dependencies": {
     "firebase": "^13.2.0",

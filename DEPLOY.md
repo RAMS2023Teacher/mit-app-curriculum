@@ -92,6 +92,26 @@ In the script editor: **Project Settings (⚙) → Script properties → Add scr
 |---|---|
 | `TEACHER_EMAILS` | Co-teachers allowed to choose the teacher role, comma-separated, e.g. `jsmith@holliston.k12.ma.us` |
 
+## Keeping student work safe
+
+The server follows these rules, and `npm test` checks each one:
+
+- **Nothing is ever replaced or reset.** If Google is too busy to open the data sheet, the request stops with a
+  "very busy, your work is safe" message. The app never makes a new, empty sheet in its place. A data sheet is created
+  only the very first time the app runs.
+- **A damaged record is reported, never treated as empty** and never overwritten.
+- **A busy class is fine.** Each student's page sends one request at a time and quietly retries when Google is busy,
+  showing "⏳ Busy… saving your work". A student's click reads only that student's records; the class summary is built
+  once and shared for up to a minute.
+- **Daily backups.** Once a day, while you use the app, every record is copied to a dated tab in a second spreadsheet,
+  **AppVenture Backups**, in your Drive. The last 8 days are kept.
+- **My classes → 🗄️ Your data** shows where the data is, how many students and classes it holds, whether today's
+  backup is done, links to both spreadsheets, and a **Back up now** button. It warns you if the app has ever used more
+  than one data sheet.
+
+To restore from a backup: open **AppVenture Backups**, find the dated tab, and ask for help copying it back. Don't
+edit the data sheet by hand.
+
 ## What is stored, and who can see it
 
 Everything is in one Google Sheet in your Drive called **AppVenture Data** (tab `data`).

@@ -56,6 +56,9 @@ export interface Backend {
   /** Approved builds for every company in the class (drives XP, tree and leaderboard). */
   watchApprovals(classId: string, cb: (a: Approval[]) => void): Unsub
 
+  /** Where the class data lives and its backups (Google Apps Script version only). */
+  storage?: { info(): Promise<DataInfo>; backupNow(): Promise<DataInfo> }
+
   /** Google Classroom (only in the Google Apps Script version, and a pretend version in demo mode). */
   classroom?: ClassroomApi
 }
@@ -98,4 +101,17 @@ export const isBetter = (prev: QuizResult | undefined, next: QuizResult) => {
   if (next.excused) return !prev.excused && prev.score / Math.max(1, prev.total) < 0.7
   if (prev.excused) return true
   return next.score / next.total >= prev.score / prev.total
+}
+
+export interface DataInfo {
+  dataUrl: string
+  backupsUrl: string
+  students: number
+  classes: number
+  today: string
+  lastBackup: string
+  lastBackupAt: number
+  backups: string[]
+  /** Links to any other data sheets this app has ever used (should be empty). */
+  otherData: string[]
 }

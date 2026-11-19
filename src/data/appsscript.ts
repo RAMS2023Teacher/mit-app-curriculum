@@ -31,16 +31,24 @@ try {
   /* not inside Apps Script */
 }
 
-const POLL_MS = 20_000
+const POLL_MS = 20_000 // class data
+const SLOW_POLL_MS = 120_000 // my account and class list change rarely
 
-function call<T>(method: string, ...args: unknown[]): Promise<T> {
+/** Messages that mean "Google is busy, try again", not "you did something wrong". */
+const BUSY_RE =
+  /BUSY:|simultaneous invocations|invoked too many times|Lock timeout|could not obtain lock|server error occurred|Service (error|unavailable)|Timed out|NetworkError|HTTP 0|try again later/i
+const MAX_TRIES = 6 // the first try plus up to 5 retries
+
+export const isBusy = (e: unknown) => BUSY_RE.test(String((e as Error)?.message ?? e))
+
+function callOnce<T>(method: string, argsJson: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const run = window.google?.script.run
     if (!run) return reject(new Error('AppVenture must be opened from its Google Apps Script link.'))
     run
       .withSuccessHandler((v) => resolve((v ? JSON.parse(v) : undefined) as T))
       .withFailureHandler((e) => {
-        const msg = String(e?.message ?? e).replace(/^Exception:\s*/, '')
+        const msg = String(e?.message ?? e).replace(/^(Exception|Error):\s*/, '')
         reject(
           new Error(
             /^Unknown action/.test(msg)
@@ -49,9 +57,64 @@ function call<T>(method: string, ...args: unknown[]): Promise<T> {
           ),
         )
       })
-      .api(method, JSON.stringify(args))
+      .api(method, argsJson)
   })
 }
+
+// ---- "Busy… saving your work" note (shown only while a request is being retried)
+let busyNote: HTMLElement | null = null
+function showBusy(on: boolean) {
+  if (on && !busyNote) {
+    busyNote = document.createElement('div')
+    busyNote.className = 'busy-note'
+    busyNote.setAttribute('role', 'status')
+    busyNote.textContent = '⏳ Busy… saving your work'
+    document.body.appendChild(busyNote)
+  } else if (!on && busyNote) {
+    busyNote.remove()
+    busyNote = null
+  }
+}
+
+// ---- one request at a time per browser; identical waiting requests share one call
+let chain: Promise<unknown> = Promise.resolve()
+const waiting = new Map<string, Promise<unknown>>()
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function withRetries<T>(method: string, argsJson: string): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const out = await callOnce<T>(method, argsJson)
+      showBusy(false)
+      return out
+    } catch (e) {
+      if (!isBusy(e) || attempt >= MAX_TRIES) {
+        showBusy(false)
+        throw isBusy(e) ? new Error('The app is very busy right now. Your work so far is safe. Wait a moment and try again.') : e
+      }
+      showBusy(true)
+      // Growing, randomised waits so a whole class doesn't retry at the same instant.
+      await sleep(Math.min(8000, 400 * 2 ** attempt) * (0.6 + Math.random() * 0.8))
+    }
+  }
+}
+
+function call<T>(method: string, ...args: unknown[]): Promise<T> {
+  const argsJson = JSON.stringify(args)
+  const key = method + argsJson
+  const same = waiting.get(key)
+  if (same) return same as Promise<T>
+  const p = chain.then(() => withRetries<T>(method, argsJson))
+  chain = p.catch(() => undefined)
+  waiting.set(key, p)
+  const done = () => {
+    if (waiting.get(key) === p) waiting.delete(key)
+  }
+  p.then(done, done)
+  return p
+}
+
+const requestId = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36)
 
 interface Snapshot {
   cls: ClassRoom | null
@@ -69,8 +132,10 @@ class Polled<T> {
   private timer: ReturnType<typeof setInterval> | null = null
   private inflight: Promise<void> | null = null
   private load: () => Promise<T>
-  constructor(load: () => Promise<T>) {
+  private every: number
+  constructor(load: () => Promise<T>, every = POLL_MS) {
     this.load = load
+    this.every = every
   }
 
   get current(): T | undefined {
@@ -84,7 +149,7 @@ class Polled<T> {
       void this.refresh()
       this.timer = setInterval(() => {
         if (document.visibilityState === 'visible') void this.refresh()
-      }, POLL_MS)
+      }, this.every)
     }
     return () => {
       this.subs.delete(cb)
@@ -117,11 +182,17 @@ class Polled<T> {
 type Me = UserProfile & { canTeach: boolean }
 
 export function createAppsScriptBackend(): Backend {
-  const meStore = new Polled<Me | null>(() => call<Me>('me').catch((e) => {
-    authError = e instanceof Error ? e.message : String(e)
-    return null
-  }))
-  const classesStore = new Polled<ClassRoom[]>(() => call<ClassRoom[]>('myClasses'))
+  const meStore: Polled<Me | null> = new Polled<Me | null>(
+    () =>
+      call<Me>('me').catch((e) => {
+        authError = e instanceof Error ? e.message : String(e)
+        // Too busy to load the page: say so kindly and try again by itself in a few seconds.
+        if (/very busy/.test(authError)) setTimeout(() => void meStore.refresh(), 4000 + Math.random() * 4000)
+        return null
+      }),
+    SLOW_POLL_MS,
+  )
+  const classesStore = new Polled<ClassRoom[]>(() => call<ClassRoom[]>('myClasses'), SLOW_POLL_MS)
   const snapshots = new Map<string, Polled<Snapshot>>()
   let authError = ''
 
@@ -189,7 +260,12 @@ export function createAppsScriptBackend(): Backend {
     // The server already limits students to their own company's submissions.
     watchSubmissions: (cid, _companyId, cb) =>
       watchSnap(cid, (s) => [...(s.submissions ?? [])].sort((a, b) => b.submittedAt - a.submittedAt), cb),
-    submit: (cid, company, sub) => write('submit', cid, company.id, sub),
+    // The id travels with the request, so a retried save can never store the same build twice.
+    submit: (cid, company, sub) => write('submit', cid, company.id, { ...sub, rid: requestId() }),
+    storage: {
+      info: () => call('dataInfo'),
+      backupNow: () => call('backupNow'),
+    },
     review: async (cid, sid, review) => {
       // The server doesn't know the curriculum, so tell it whether this is a solo lesson.
       const known = snap(cid).current ?? (await call<Snapshot>('snapshot', cid))

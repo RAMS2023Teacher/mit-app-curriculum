@@ -72,6 +72,23 @@ See **[DEPLOY.md](DEPLOY.md)**. AppVenture runs as a Google Apps Script web app,
 Google Sheet in the teacher's school Drive. Students sign in with their school accounts, and no other vendors are involved.
 After changing the app, run `npm run build:appsscript` and commit `apps-script/index.html`.
 
+## Tests
+
+```bash
+npm test
+```
+
+Runs the server reliability tests (`tests/server.test.cjs`): the real `apps-script/Code.gs` against a stand-in for
+Google's services that can be made to fail. Browser tests live in `tests/browser/` and need Playwright:
+
+```bash
+npm run build:appsscript && node tests/dev-server.cjs
+```
+
+```bash
+node tests/browser/busy.cjs
+```
+
 ## Alternative: Firebase (free tier)
 
 1. Create a project at <https://console.firebase.google.com>.
