@@ -116,7 +116,10 @@ function call<T>(method: string, ...args: unknown[]): Promise<T> {
 
 const requestId = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36)
 
+import type { GameResult, Player, PlayerCard } from '../game/types'
+
 interface Snapshot {
+  players?: PlayerCard[]
   cls: ClassRoom | null
   members: Member[]
   companies: Company[]
@@ -140,6 +143,13 @@ class Polled<T> {
 
   get current(): T | undefined {
     return this.value
+  }
+
+  /** Put in a value we already know is the newest (for example, the answer to a save). */
+  set(v: T) {
+    this.last = JSON.stringify(v)
+    this.value = v
+    this.subs.forEach((cb) => cb(v))
   }
 
   subscribe(cb: (v: T) => void): Unsub {
@@ -196,6 +206,21 @@ export function createAppsScriptBackend(): Backend {
   const snapshots = new Map<string, Polled<Snapshot>>()
   let authError = ''
 
+  const players = new Map<string, Polled<Player>>()
+  const playerOf = (cid: string) => {
+    let s = players.get(cid)
+    if (!s) {
+      s = new Polled<Player>(() => call<Player>('player', cid), 60_000)
+      players.set(cid, s)
+    }
+    return s
+  }
+  /** A game action: the answer carries the newest player record, so no extra reads are needed. */
+  const play = async (cid: string, method: string, ...args: unknown[]): Promise<GameResult> => {
+    const r = await call<GameResult>(method, cid, ...args)
+    if (r?.player) playerOf(cid).set(r.player)
+    return r
+  }
   const snap = (cid: string) => {
     let s = snapshots.get(cid)
     if (!s) {
@@ -254,7 +279,19 @@ export function createAppsScriptBackend(): Backend {
     leaveCompany: (cid, coid, uid) => write('leaveCompany', cid, coid, uid),
     updateCompany: (cid, coid, patch) => write('updateCompany', cid, coid, patch),
     chooseBranch: (cid, coid, branchId, lessonId) => write('chooseBranch', cid, coid, branchId, lessonId),
-    recordQuiz: (cid, coid, lessonId, uid, result) => write('recordQuiz', cid, coid, lessonId, uid, result),
+    recordQuiz: async (cid, coid, lessonId, uid, result) => {
+      const r = await write<GameResult | null>('recordQuiz', cid, coid, lessonId, uid, result)
+      if (r?.player) playerOf(cid).set(r.player)
+      return r
+    },
+    game: {
+      watchPlayer: (cid, cb) => playerOf(cid).subscribe(cb),
+      watchPlayers: (cid, cb) => watchSnap(cid, (s) => s.players ?? [], cb),
+      earn: (cid, events) => play(cid, 'earn', events),
+      buy: (cid, item) => play(cid, 'buy', item),
+      saveAvatar: (cid, avatar) => play(cid, 'saveAvatar', avatar),
+      giveBadge: (cid, uid) => call('giveBadge', cid, uid),
+    },
     savePlan: (cid, coid, lessonId, plan) => write('savePlan', cid, coid, lessonId, plan),
 
     // The server already limits students to their own company's submissions.

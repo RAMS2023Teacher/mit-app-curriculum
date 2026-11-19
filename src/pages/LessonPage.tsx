@@ -17,6 +17,9 @@ import { DevicesBox, IdeasAndPlan, RemixView, StepView } from '../components/Les
 import { SpeakButton } from '../components/Speak'
 import { usePref } from '../lib/prefs'
 import { withXp } from '../lib/xp'
+import { LockedButton } from '../components/LockedButton'
+import { usePlayer } from '../game/hooks'
+import { sfx, showGain } from '../lib/fx'
 import { alignmentFor, DISCUSS } from '../curriculum/alignment'
 import { getStandard } from '../curriculum/standards'
 
@@ -61,6 +64,18 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
   const progress = company ? data.progress.get(company.id)?.lessons[lesson.id] : undefined
   const [stage, setStage] = useState<Stage | null>(null)
   const [simple, setSimple] = usePref('simple', false)
+  // Personal XP: only for a student working in their own class.
+  const player = usePlayer(company ? classId : undefined)
+  const game = company && classId ? backend.game : undefined
+  const earn = (ev: { t: 'start'; lesson: string } | { t: 'step'; lesson: string; i: number }) => {
+    if (!game || !canAct) return
+    game.earn(classId!, [ev]).then(showGain, () => undefined)
+  }
+  // Steps count as done if this browser ticked them OR the server already paid for them (another device).
+  const paidSteps = Object.keys(player?.awards ?? {})
+    .filter((k) => k.startsWith(`step:${rawLesson.id}:`))
+    .map((k) => Number(k.split(':')[2]))
+  const stepsDone = [...new Set([...steps.done, ...paidSteps])]
   if (classId && data.loading) return <Loading />
 
   const isTeacher = classId ? data.isTeacher : user?.role === 'teacher'
@@ -77,10 +92,10 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
   const starter = data.cls?.settings.starters?.[lesson.id]
 
   const current: Stage =
-    stage ?? (myQuiz?.passed ? 'submit' : steps.done.length > 0 ? 'build' : 'brief')
+    stage ?? (myQuiz?.passed ? 'submit' : stepsDone.length > 0 ? 'build' : 'brief')
   const stageDone: Record<Stage, boolean> = {
-    brief: steps.done.length > 0 || !!myQuiz?.passed,
-    build: steps.done.length >= buildCount,
+    brief: stepsDone.length > 0 || !!myQuiz?.passed,
+    build: stepsDone.length >= buildCount,
     quiz: !!myQuiz?.passed,
     submit: !!progress?.buildApproved,
   }
@@ -137,13 +152,28 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
         <div className="stack">
           {current === 'brief' && (
             <>
-              <Brief lesson={lesson} onStart={() => go('build')} />
+              <Brief
+                lesson={lesson}
+                onStart={() => {
+                  earn({ t: 'start', lesson: lesson.id })
+                  go('build')
+                }}
+              />
               {lesson.devices && lesson.devices.length > 0 && <DevicesBox devices={lesson.devices} />}
               {lesson.ideas && lesson.ideas.length > 0 && <IdeasAndPlan lesson={lesson} company={company ?? null} classId={classId} />}
             </>
           )}
           {current === 'build' && (
-            <StepPlayer lesson={lesson} simple={simple} done={steps.done} onDone={steps.mark} onFinish={() => go('quiz')} />
+            <StepPlayer
+              lesson={lesson}
+              simple={simple}
+              done={stepsDone}
+              onDone={(i) => {
+                steps.mark(i)
+                earn({ t: 'step', lesson: lesson.id, i })
+              }}
+              onFinish={() => go('quiz')}
+            />
           )}
           {current === 'quiz' && (
             <Quiz
@@ -155,8 +185,11 @@ function LessonView({ lesson: rawLesson, classId }: { lesson: Lesson; classId?: 
               onNext={() => go('submit')}
               onDone={
                 company && canAct
-                  ? (score, total) =>
-                      backend.recordQuiz(classId!, company.id, lesson.id, user!.uid, { score, total, by: user!.uid, byName: user!.name, at: Date.now() })
+                  ? async (score, total, answers) => {
+                      // The server marks the quiz itself from `answers` and pays personal XP.
+                      const r = await backend.recordQuiz(classId!, company.id, lesson.id, user!.uid, { score, total, by: user!.uid, byName: user!.name, at: Date.now(), answers })
+                      showGain(r)
+                    }
                   : undefined
               }
             />
@@ -321,6 +354,9 @@ function StepPlayer({
   const [i, setI] = useState(firstOpen === -1 ? 0 : firstOpen)
   const isRemix = !!lesson.remix && i === lesson.steps.length
   const last = i === count - 1
+  // Steps with a "Test now" box wait for the student to tick that they tested.
+  const [tested, setTested] = useState<number[]>([])
+  const ready = isRemix || !lesson.steps[i].check || done.includes(i) || tested.includes(i)
   return (
     <div className="card">
       <div className="spread" style={{ marginBottom: 14 }}>
@@ -339,14 +375,29 @@ function StepPlayer({
         </span>
       </div>
       <div key={i} className="pop">
-        {isRemix ? <RemixView remix={lesson.remix!} /> : <StepView step={lesson.steps[i]} simple={simple} />}
+        {isRemix ? (
+          <RemixView remix={lesson.remix!} />
+        ) : (
+          <StepView
+            step={lesson.steps[i]}
+            simple={simple}
+            tested={done.includes(i) || tested.includes(i)}
+            onTested={(v) => {
+              if (v) sfx.tick()
+              setTested(v ? [...tested, i] : tested.filter((x) => x !== i))
+            }}
+          />
+        )}
       </div>
       <div className="spread" style={{ marginTop: 16 }}>
         <button onClick={() => setI(Math.max(0, i - 1))} disabled={i === 0}>
           ◀ Back
         </button>
-        <button
+        <LockedButton
           className={last ? 'gold big' : 'go big'}
+          ready={ready}
+          missing='test your app, then tick "I tested it"'
+          target={() => document.getElementById('tested-box')}
           onClick={() => {
             onDone(i)
             if (last) onFinish()
@@ -354,7 +405,7 @@ function StepPlayer({
           }}
         >
           {last ? 'Done! Quiz time 🧠' : i === lesson.steps.length - 1 && lesson.remix ? 'Got it! Remix ▶' : 'Got it! Next ▶'}
-        </button>
+        </LockedButton>
       </div>
     </div>
   )
@@ -399,7 +450,7 @@ function Quiz({
   practice: boolean
   passPercent: number
   best: number | null
-  onDone?: (score: number, total: number) => Promise<void>
+  onDone?: (score: number, total: number, answers: number[]) => Promise<void>
   onNext: () => void
 }) {
   const shuffle = () => lesson.quiz.map((q) => q.options.map((_, i) => i).sort(() => Math.random() - 0.5))
@@ -487,7 +538,7 @@ function Quiz({
           {best !== null && ` · best ${best}%`}
         </span>
       </div>
-      <div key={q} className="pop">
+      <div key={q} className="pop" id="quiz-options">
         <div className="spread" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
           <h2 style={{ fontSize: '1.45rem' }}>{item.q}</h2>
           <SpeakButton text={`${item.q} ${order[q].map((j, pos) => `${String.fromCharCode(65 + pos)}: ${item.options[j]}.`).join(' ')}`} />
@@ -508,25 +559,29 @@ function Quiz({
           {item.explain}
         </div>
       )}
-      {answered && (
-        <div style={{ textAlign: 'right' }}>
-          <button
-            className="go big"
-            disabled={busy}
-            onClick={() => {
-              if (q < total - 1) setQ(q + 1)
-              else
-                void run(async () => {
-                  await onDone?.(score, total)
-                  setFinished(true)
-                  if (passed) celebrate()
-                })
-            }}
-          >
-            {q < total - 1 ? 'Next ▶' : 'See my score ⭐'}
-          </button>
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+        <LockedButton
+          className="go big"
+          ready={answered}
+          missing="pick an answer"
+          target={() => document.getElementById('quiz-options')}
+          disabled={busy}
+          onClick={() => {
+            if (q < total - 1) setQ(q + 1)
+            else
+              void run(async () => {
+                await onDone?.(score, total, answers as number[])
+                setFinished(true)
+                if (passed) {
+                  sfx.pass()
+                  celebrate()
+                }
+              })
+          }}
+        >
+          {q < total - 1 ? 'Next ▶' : 'See my score ⭐'}
+        </LockedButton>
+      </div>
       {error && <p className="error">{error}</p>}
     </div>
   )
@@ -692,7 +747,7 @@ function SubmitBuild({
               ))}
             </div>
           )}
-          <label className="row" style={{ gap: 8, margin: '14px 0', fontWeight: 800 }}>
+          <label className="row" id="bonus-box" style={{ gap: 8, margin: '14px 0', fontWeight: 800 }}>
             <input type="checkbox" checked={bonus} onChange={(e) => setBonus(e.target.checked)} style={{ width: 22, height: 22 }} />
             ⭐ We did the bonus quest
           </label>
@@ -707,9 +762,18 @@ function SubmitBuild({
               <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What did you add?" />
             </label>
           </details>
-          <button
+          <LockedButton
             className="gold big"
-            disabled={busy || (!report && !link.trim()) || (mineApproved && !bonus) || !logOk}
+            ready={!!(report || link.trim()) && !(mineApproved && !bonus) && logOk}
+            missing={
+              !(report || link.trim())
+                ? 'add your .aia file (or a link)'
+                : !logOk
+                  ? 'fill in "Who did what?" for every partner'
+                  : 'tick the bonus quest box (your build is already approved)'
+            }
+            target={() => document.querySelector(!(report || link.trim()) ? '.dropzone' : !logOk ? '.callout.frames' : '#bonus-box')}
+            disabled={busy}
             onClick={async () => {
               const ok = await run(() =>
                 backend.submit(classId, company, {
@@ -728,8 +792,7 @@ function SubmitBuild({
             }}
           >
             Send to teacher 🚀
-          </button>
-          {!logOk && <p className="small muted">Fill in "Who did what?" for every partner first.</p>}
+          </LockedButton>
           {error && <p className="error">{error}</p>}
         </>
       )}

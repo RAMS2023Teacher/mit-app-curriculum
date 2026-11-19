@@ -1,4 +1,8 @@
 import { ask } from './confirm'
+import { usePlayer } from '../game/hooks'
+import { MANIFEST } from '../game/manifest'
+import { levelOf, spendable } from '../game/rules.js'
+import { setSound, soundOn } from '../lib/fx'
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { backend, demo } from '../data'
@@ -30,12 +34,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <NavLink to={`/class/${classId}/tree`}>Tree</NavLink>
               <NavLink to={`/class/${classId}/leaderboard`}>Leaderboard</NavLink>
               {user?.role === 'student' && <NavLink to={`/class/${classId}/company`}>Company</NavLink>}
+              {user?.role === 'student' && backend.game && <NavLink to={`/class/${classId}/me`}>Me</NavLink>}
             </>
           )}
           <NavLink to="/lessons">Lessons</NavLink>
           {user?.role === 'teacher' && <NavLink to="/standards">Standards</NavLink>}
           <NavLink to="/phone">Phone setup</NavLink>
         </nav>
+        {user?.role === 'student' && classId && backend.game && <XpChip classId={classId} />}
+        <SoundToggle />
         <a className="btn small" href={APP_INVENTOR_URL} target="_blank" rel="noreferrer">
           Open App Inventor ↗
         </a>
@@ -97,5 +104,30 @@ function DemoBar() {
         Reset
       </button>
     </div>
+  )
+}
+
+/** "⚡ 165 · Lv 3" in the top bar: XP to spend and level. Stars fly here when XP is earned. */
+function XpChip({ classId }: { classId: string }) {
+  const player = usePlayer(classId)
+  if (!player) return null
+  return (
+    <NavLink to={`/class/${classId}/me`} id="xp-chip" className="xp-chip" title="XP to spend. Open your buddy and the shop." aria-label={`${spendable(player)} XP to spend, level ${levelOf(player.xp, MANIFEST).n}`}>
+      ⚡ {spendable(player)} <small>Lv {levelOf(player.xp, MANIFEST).n}</small>
+    </NavLink>
+  )
+}
+
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn())
+  useEffect(() => {
+    const f = () => setOn(soundOn())
+    window.addEventListener('appventure-sound', f)
+    return () => window.removeEventListener('appventure-sound', f)
+  }, [])
+  return (
+    <button className="small ghost sound-toggle" aria-pressed={on} aria-label={on ? 'Sound is on. Turn sound off' : 'Sound is off. Turn sound on'} title={on ? 'Sound on' : 'Sound off'} onClick={() => setSound(!on)}>
+      {on ? '🔊' : '🔇'}
+    </button>
   )
 }

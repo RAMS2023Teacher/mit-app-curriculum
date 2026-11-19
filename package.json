@@ -8,8 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "build:appsscript": "tsc -b && vite build --mode appsscript && node scripts/inline.mjs dist-appsscript apps-script/index.html",
-    "test": "node --test tests/server.test.cjs"
+    "build:appsscript": "tsc -b && npm run sync:server && vite build --mode appsscript && node scripts/inline.mjs dist-appsscript apps-script/index.html",
+    "test": "node --test tests/server.test.cjs tests/game.test.cjs",
+    "sync:server": "tsx scripts/sync-server.ts"
   },
   "dependencies": {
     "firebase": "^13.2.0",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.90.0",
+    "tsx": "^4.23.15",
     "typescript": "~7.0.2",
     "vite": "^8.3.6"
   }

@@ -92,6 +92,32 @@ In the script editor: **Project Settings (⚙) → Script properties → Add scr
 |---|---|
 | `TEACHER_EMAILS` | Co-teachers allowed to choose the teacher role, comma-separated, e.g. `jsmith@holliston.k12.ma.us` |
 
+## Personal XP, levels, badges and the shop
+
+Each student has their own XP on top of their company's XP:
+
+| Earned for | XP |
+|---|---|
+| Starting a mission | 10 |
+| Each build step (after ticking "I tested it" where there is a test) | 10 |
+| Passing the quiz | 30 |
+| A perfect quiz / perfect on the first try | +20 / +10 |
+| Build approved by you | 50 |
+| Bonus quest approved by you | 25 |
+| Whole lesson complete (their own quiz passed and the build approved) | 50 |
+| Every badge | 25 |
+
+- **Levels** (12 of them, Intern to Founder Legend) count all XP ever earned and never go down.
+- **The shop** spends "XP to spend" on App Buddy parts. Spending never lowers a level.
+- **The server decides.** It marks each quiz from the answer key, pays each award only once, and checks every price
+  and balance. Build and bonus XP are paid only when you approve.
+- **Students tab:** see each student's XP and level, and give the 🍎 Teacher's Pick badge.
+- Company XP (the tree and leaderboard) is separate and works as before; you can still adjust it in Settings.
+
+The rules live in `src/game/rules.js` and are copied into `Code.gs` by `npm run build:appsscript`. Lessons, answer
+keys and prices are in `apps-script/manifest.json`, which the server loads from GitHub, so lesson changes need no
+re-paste. Changes to the rules themselves do: paste the new `Code.gs` and deploy a new version.
+
 ## Keeping student work safe
 
 The server follows these rules, and `npm test` checks each one:

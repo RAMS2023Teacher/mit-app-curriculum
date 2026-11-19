@@ -17,6 +17,7 @@ import { Leaderboard } from './pages/Leaderboard'
 import { PhoneGuide } from './pages/PhoneGuide'
 import { StandardsPage } from './pages/StandardsPage'
 import { ClassScreen } from './pages/ClassScreen'
+import { MePage } from './pages/MePage'
 
 function Home() {
   const { user } = useAuth()
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/class/:classId/tree" element={<RequireUser><TreePage /></RequireUser>} />
             <Route path="/class/:classId/lesson/:lessonId" element={<RequireUser><LessonPage /></RequireUser>} />
             <Route path="/class/:classId/company" element={<RequireUser><CompanyPage /></RequireUser>} />
+            <Route path="/class/:classId/me" element={<RequireUser><MePage /></RequireUser>} />
             <Route path="/class/:classId/screen" element={<RequireUser><ClassScreen /></RequireUser>} />
             <Route path="/class/:classId/leaderboard" element={<RequireUser><Leaderboard /></RequireUser>} />
             <Route path="/lessons" element={<Library />} />

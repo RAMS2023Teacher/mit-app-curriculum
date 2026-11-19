@@ -19,4 +19,4 @@ jobs:
       - run: npm ci
       - run: npm test # storage reliability rules for apps-script/Code.gs
       - run: npm run build:appsscript
-      - run: git diff --exit-code apps-script/index.html || (echo "::error::Run npm run build:appsscript and commit apps-script/index.html" && exit 1)
+      - run: git diff --exit-code apps-script/ || (echo "::error::Run npm run build:appsscript and commit the apps-script folder (index.html, manifest.json, Code.gs)" && exit 1)

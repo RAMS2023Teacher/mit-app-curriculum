@@ -15,7 +15,18 @@ const EDITOR_TAG: Record<string, { label: string; color: string }> = {
 }
 
 /** One build step with all of its supports. */
-export function StepView({ step, simple }: { step: LessonStep; simple: boolean }) {
+export function StepView({
+  step,
+  simple,
+  tested,
+  onTested,
+}: {
+  step: LessonStep
+  simple: boolean
+  /** When given, the "Test now" box gets an "I tested it" tick that the Next button waits for. */
+  tested?: boolean
+  onTested?: (v: boolean) => void
+}) {
   const text = simple && step.simple ? step.simple : step.body
   return (
     <div>
@@ -69,6 +80,12 @@ export function StepView({ step, simple }: { step: LessonStep; simple: boolean }
         <div className="callout check">
           <span className="t">{/^done when/i.test(step.check) ? '🏁 Done when…' : '✅ Test now'}</span>
           {step.check.replace(/^(test now|done when)[:.…\s-]*/i, '').replace(/^./, (c) => c.toUpperCase())}
+          {onTested && (
+            <label className="tested" id="tested-box">
+              <input type="checkbox" checked={!!tested} onChange={(e) => onTested(e.target.checked)} />
+              {/^done when/i.test(step.check) ? 'We did it' : 'I tested it and it works'}
+            </label>
+          )}
         </div>
       )}
       {step.stuck && step.stuck.length > 0 && (

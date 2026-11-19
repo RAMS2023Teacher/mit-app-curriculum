@@ -9,6 +9,10 @@ import { Tree, TreeLegend } from '../components/Tree'
 import { CompanyName, useAction } from '../components/ui'
 import { ReviewQueue } from './ReviewQueue'
 import { ClassroomTab } from './ClassroomTab'
+import { usePlayers } from '../game/hooks'
+import { MANIFEST } from '../game/manifest'
+import { levelOf } from '../game/rules.js'
+import { Buddy } from '../components/Buddy'
 import { backend as dataBackend } from '../data'
 
 type Data = ReturnType<typeof useClassData>
@@ -23,6 +27,8 @@ export function TeacherClass({ data }: { data: Data }) {
     (submissions ?? []).filter((s) => s.status === 'pending').length +
     (companies ?? []).reduce((n, c) => n + Object.values(c.plans ?? {}).filter((p) => !p.approved).length, 0)
   const noCompany = (members ?? []).filter((m) => !m.companyId)
+  const cards = usePlayers(dataBackend.game ? c.id : undefined)
+  const [gave, setGave] = useState('')
   const joinUrl = `${location.origin}${location.pathname}`
 
   return (
@@ -136,12 +142,14 @@ export function TeacherClass({ data }: { data: Data }) {
 
       {tab === 'students' && (
         <div className="card table-wrap">
+          {gave && <div className="alert good">{gave}</div>}
           <table className="list">
             <thead>
               <tr>
                 <th>Student</th>
                 <th>Company</th>
                 <th>Quizzes taken</th>
+                {dataBackend.game && <th>Their XP</th>}
                 <th></th>
               </tr>
             </thead>
@@ -157,7 +165,32 @@ export function TeacherClass({ data }: { data: Data }) {
                     </td>
                     <td>{co ? <CompanyName company={co} size={24} /> : <span className="muted">none</span>}</td>
                     <td>{quizzes}</td>
+                    {dataBackend.game &&
+                      (() => {
+                        const pc = cards?.find((x) => x.uid === m.uid)
+                        return (
+                          <td>
+                            <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                              <Buddy avatar={pc?.avatar} size={34} />
+                              <span className="small">
+                                <span className="xp-num">{pc?.xp ?? 0} XP</span> · Lv {levelOf(pc?.xp ?? 0, MANIFEST).n}
+                              </span>
+                            </div>
+                          </td>
+                        )
+                      })()}
                     <td style={{ textAlign: 'right' }}>
+                      {dataBackend.game && (
+                        <button
+                          className="small"
+                          title="Give the Teacher's Pick badge (+25 XP)"
+                          onClick={() =>
+                            void dataBackend.game!.giveBadge(c.id, m.uid).then((r) => setGave(r.given ? `🍎 ${m.name} got the Teacher's Pick badge.` : `${m.name} already has the Teacher's Pick badge.`))
+                          }
+                        >
+                          🍎 Teacher's Pick
+                        </button>
+                      )}{' '}
                       {co && (
                         <button className="small" onClick={() => void ask(`Remove ${m.name} from ${co.name}?`).then((ok) => { if (ok) void backend.leaveCompany(c.id, co.id, m.uid) })}>
                           Remove from company

@@ -1,4 +1,5 @@
 import type { Approval, CapstonePlan, ClassBoard, ClassRoom, ClassroomCourse, ClassSettings, Company, LogoSpec, Member, QuizResult, Role, Submission, UserProfile } from '../types'
+import type { GameEvent, GameResult, Player, PlayerCard } from '../game/types'
 
 export type Unsub = () => void
 
@@ -46,7 +47,8 @@ export interface Backend {
   updateCompany(classId: string, companyId: string, patch: { name?: string; tagline?: string; logo?: LogoSpec }): Promise<void>
   chooseBranch(classId: string, companyId: string, branchId: string, lessonId: string | null): Promise<void>
   /** Store a student's quiz result (keeps their best). Teachers pass excused results for a student. */
-  recordQuiz(classId: string, companyId: string, lessonId: string, uid: string, result: QuizResult): Promise<void>
+  /** `answers` (the option picked for each question) lets the server mark the quiz itself and pay personal XP. */
+  recordQuiz(classId: string, companyId: string, lessonId: string, uid: string, result: QuizResult & { answers?: number[] }): Promise<GameResult | null | void>
   savePlan(classId: string, companyId: string, lessonId: string, plan: CapstonePlan): Promise<void>
 
   /** Teacher: all submissions in the class. Student: their company's submissions. */
@@ -55,6 +57,9 @@ export interface Backend {
   review(classId: string, submissionId: string, review: Review): Promise<void>
   /** Approved builds for every company in the class (drives XP, tree and leaderboard). */
   watchApprovals(classId: string, cb: (a: Approval[]) => void): Unsub
+
+  /** Personal XP, levels, badges, shop and avatar (not in the Firebase version). */
+  game?: GameApi
 
   /** Where the class data lives and its backups (Google Apps Script version only). */
   storage?: { info(): Promise<DataInfo>; backupNow(): Promise<DataInfo> }
@@ -101,6 +106,16 @@ export const isBetter = (prev: QuizResult | undefined, next: QuizResult) => {
   if (next.excused) return !prev.excused && prev.score / Math.max(1, prev.total) < 0.7
   if (prev.excused) return true
   return next.score / next.total >= prev.score / prev.total
+}
+
+export interface GameApi {
+  watchPlayer(classId: string, cb: (p: Player) => void): Unsub
+  /** Classmates' public game info: XP and avatar. */
+  watchPlayers(classId: string, cb: (p: PlayerCard[]) => void): Unsub
+  earn(classId: string, events: GameEvent[]): Promise<GameResult>
+  buy(classId: string, item: string): Promise<GameResult>
+  saveAvatar(classId: string, avatar: Record<string, string>): Promise<GameResult>
+  giveBadge(classId: string, uid: string): Promise<{ given: boolean }>
 }
 
 export interface DataInfo {

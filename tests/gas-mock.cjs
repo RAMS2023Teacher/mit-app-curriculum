@@ -6,8 +6,8 @@ const path = require('path')
 const crypto = require('crypto')
 
 function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
-  const fail = { open: 0, props: 0, names: 0, cell: 0, write: 0, append: 0, lock: 0, copy: 0 }
-  const count = { creates: 0, opens: 0, nameReads: 0, cellReads: 0, spanReads: 0, writes: 0, appends: 0, deletes: 0 }
+  const fail = { open: 0, props: 0, names: 0, cell: 0, write: 0, append: 0, lock: 0, copy: 0, fetch: 0 }
+  const count = { creates: 0, opens: 0, nameReads: 0, cellReads: 0, spanReads: 0, writes: 0, appends: 0, deletes: 0, fetches: 0 }
   const state = { email: '', today: '2026-11-19', spreadsheets: {}, props: {}, cache: new Map(), nextId: 1 }
   const maybeFail = (k, what) => {
     if (fail[k] > 0) {
@@ -66,6 +66,14 @@ function createMock({ owner = 'teacher@holliston.k12.ma.us' } = {}) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => { maybeFail('props', 'properties'); return state.props[k] ?? null }, setProperty: (k, v) => { state.props[k] = String(v) } }) },
     LockService: { getScriptLock: () => ({ waitLock() { maybeFail('lock', 'Lock timeout'); }, releaseLock() {} }) },
     CacheService: { getScriptCache: () => cacheApi },
+    UrlFetchApp: {
+      fetch: (url) => {
+        maybeFail('fetch', 'fetch')
+        count.fetches++
+        const file = path.join(__dirname, '..', 'apps-script', url.split('/').pop())
+        return { getResponseCode: () => 200, getContentText: () => fs.readFileSync(file, 'utf8') }
+      },
+    },
     Session: { getActiveUser: () => ({ getEmail: () => state.email }), getEffectiveUser: () => ({ getEmail: () => owner }), getScriptTimeZone: () => 'America/New_York' },
     ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/a/macros/holliston.k12.ma.us/s/XYZ/exec' }) },
     Utilities: {

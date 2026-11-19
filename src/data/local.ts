@@ -1,6 +1,10 @@
 import type { Approval, ClassRoom, Company, Member, Role, Submission, UserProfile } from '../types'
 import { DEFAULT_SETTINGS, approvalId, isBetter, makeCode, type Backend, type Unsub } from './backend'
 import { getLesson } from '../curriculum'
+import { MANIFEST } from '../game/manifest'
+import { applyEvent, buy as buyItem, newPlayer, setAvatar } from '../game/rules.js'
+import type { GameOutcome, GameResult, Player } from '../game/types'
+import type { QuizResult } from '../types'
 
 /** Demo backend: everything lives in this browser's localStorage. Open two tabs
  *  (one as the teacher, one as a student) and they stay in sync. */
@@ -12,11 +16,12 @@ interface DB {
   members: Record<string, Record<string, Member>>
   companies: Record<string, Record<string, Company>>
   submissions: Record<string, Record<string, Submission>>
+  players: Record<string, Record<string, Player>>
 }
 
 const KEY = 'appventure-demo-db'
 const SESSION_KEY = 'appventure-demo-user'
-const VERSION = 3
+const VERSION = 4
 
 const id = () => Math.random().toString(36).slice(2, 10)
 
@@ -79,6 +84,15 @@ export function createLocalBackend(): DemoBackend {
     return () => listeners.delete(run)
   }
 
+  const playerOf = (classId: string, uid: string): Player => ((db.players[classId] ??= {})[uid] ??= newPlayer(uid))
+  const mergeOuts = (p: Player, outs: GameOutcome[]): GameResult => ({
+    player: structuredClone(p),
+    gained: outs.flatMap((o) => o.gained),
+    badges: outs.flatMap((o) => o.badges),
+    quiz: outs.find((o) => o.quiz)?.quiz ?? null,
+    level: outs.length ? outs[outs.length - 1].level : 0,
+    levelUp: outs.some((o) => o.levelUp),
+  })
   const me = () => {
     const u = currentUid ? db.users[currentUid] : null
     if (!u) throw new Error('Not signed in')
@@ -233,9 +247,58 @@ export function createLocalBackend(): DemoBackend {
     },
     async recordQuiz(classId, companyId, lessonId, uid, result) {
       const c = db.companies[classId][companyId]
+      let game: GameResult | null = null
+      const { answers, ...rest } = result
+      let saved: QuizResult = rest
+      if (!result.excused && answers && uid === currentUid) {
+        const p = playerOf(classId, uid)
+        const out = applyEvent(p, { t: 'quiz', lesson: lessonId, answers }, MANIFEST, {
+          now: Date.now(),
+          passPercent: db.classes[classId].settings.quizPassPercent,
+          team: c.memberIds.length > 1,
+        })
+        saved = { ...rest, score: out.quiz!.score, total: out.quiz!.total }
+        game = { ...out, player: structuredClone(p) }
+      }
       const byUser = (c.quizzes[lessonId] ??= {})
-      if (isBetter(byUser[uid], result)) byUser[uid] = result
+      if (isBetter(byUser[uid], saved)) byUser[uid] = saved
       save()
+      return game
+    },
+    game: {
+      watchPlayer(classId, cb) {
+        return watch(() => (currentUid ? (db.players[classId]?.[currentUid] ?? newPlayer(currentUid)) : newPlayer('none')), cb)
+      },
+      watchPlayers(classId, cb) {
+        return watch(() => Object.values(db.players[classId] ?? {}).map((p) => ({ uid: p.uid, xp: p.xp, avatar: p.avatar })), cb)
+      },
+      async earn(classId, events) {
+        const p = playerOf(classId, me().uid)
+        const outs = events.map((ev) => {
+          if (ev.t !== 'start' && ev.t !== 'step') throw new Error('Unknown event.')
+          return applyEvent(p, ev, MANIFEST, { now: Date.now() })
+        })
+        save()
+        return mergeOuts(p, outs)
+      },
+      async buy(classId, item) {
+        const p = playerOf(classId, me().uid)
+        buyItem(p, item, MANIFEST, Date.now())
+        save()
+        return mergeOuts(p, [])
+      },
+      async saveAvatar(classId, avatar) {
+        const p = playerOf(classId, me().uid)
+        setAvatar(p, avatar, MANIFEST)
+        const out = applyEvent(p, { t: 'avatar' } as never, MANIFEST, { now: Date.now() })
+        save()
+        return mergeOuts(p, [out])
+      },
+      async giveBadge(classId, uid) {
+        const out = applyEvent(playerOf(classId, uid), { t: 'gift', badge: 'teacher' }, MANIFEST, { now: Date.now(), trusted: true })
+        save()
+        return { given: out.badges.length > 0 }
+      },
     },
     async savePlan(classId, companyId, lessonId, plan) {
       const c = db.companies[classId][companyId]
@@ -273,7 +336,19 @@ export function createLocalBackend(): DemoBackend {
       save()
     },
     async review(classId, submissionId, review) {
-      Object.assign(db.submissions[classId][submissionId], review, { reviewedAt: Date.now() })
+      const sub = db.submissions[classId][submissionId]
+      Object.assign(sub, review, { reviewedAt: Date.now() })
+      if (review.status === 'approved') {
+        // Personal XP for shipping is paid on the teacher's approval.
+        const co = db.companies[classId][sub.companyId]
+        const who = getLesson(sub.lessonId)?.individual ? [sub.submittedBy] : (co?.memberIds ?? [sub.submittedBy])
+        for (const uid of who)
+          applyEvent(playerOf(classId, uid), { t: 'ship', lesson: sub.lessonId, bonus: review.bonusApproved }, MANIFEST, {
+            now: Date.now(),
+            trusted: true,
+            team: (co?.memberIds.length ?? 1) > 1,
+          })
+      }
       save()
     },
 
@@ -395,7 +470,7 @@ function safeGet(k: string) {
 function seed(): DB {
   const day = 86_400_000
   const now = Date.now()
-  const db: DB = { version: VERSION, users: {}, classes: {}, members: {}, companies: {}, submissions: {} }
+  const db: DB = { version: VERSION, users: {}, classes: {}, members: {}, companies: {}, submissions: {}, players: { 'demo-class': {} } }
   const teacher: UserProfile = { uid: 'demo-teacher', name: 'Demo Teacher', role: 'teacher', classIds: ['demo-class'] }
   db.users[teacher.uid] = teacher
   db.classes['demo-class'] = {
@@ -563,6 +638,18 @@ function seed(): DB {
       const at = t + i * 1.6 * day
       quiz(lessonId, at)
       addSub(lessonId, 'approved', at + day / 3, { bonusApproved: i % 3 === 0 })
+      // Each member's personal XP for the same work.
+      const L = MANIFEST.lessons[lessonId]
+      s.people.forEach(([uid], k) => {
+        const p = (db.players['demo-class'][uid] ??= newPlayer(uid))
+        const ctx = { now: at, passPercent: 70, team: s.people.length > 1, trusted: true }
+        applyEvent(p, { t: 'start', lesson: lessonId }, MANIFEST, ctx)
+        for (let st = 0; st < L.steps; st++) applyEvent(p, { t: 'step', lesson: lessonId, i: st }, MANIFEST, ctx)
+        // Some first tries miss one question, so not everyone has every quiz badge.
+        const answers = L.quiz.map((a, q) => ((i + k) % 3 === 0 && q === 0 ? (a + 1) % 4 : a))
+        applyEvent(p, { t: 'quiz', lesson: lessonId, answers }, MANIFEST, ctx)
+        applyEvent(p, { t: 'ship', lesson: lessonId, bonus: i % 3 === 0 }, MANIFEST, ctx)
+      })
     })
     s.quizOnly?.forEach((l) => quiz(l, now - day, true))
     if (s.pending) {

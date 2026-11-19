@@ -4,6 +4,12 @@ import { getLesson, TRACK_INFO } from '../curriculum'
 import { BRANCHES } from '../curriculum/tree'
 import { Logo } from '../components/Logo'
 import { XpBar } from '../components/ui'
+import { backend } from '../data'
+import { useAuth } from '../data/hooks'
+import { usePlayer } from '../game/hooks'
+import { spendable } from '../game/rules.js'
+import { Buddy } from '../components/Buddy'
+import { LevelBar } from './MePage'
 
 type Data = ReturnType<typeof useClassData>
 
@@ -20,6 +26,8 @@ export function StudentDashboard({ data }: { data: Data }) {
   const nextStatus = next ? p.lessons[next.id]?.status : null
   const fixes = (submissions ?? []).filter((s) => s.status === 'returned' && p.lessons[s.lessonId]?.status === 'returned')
   const color = next ? TRACK_INFO[next.track].color : 'var(--mini)'
+  const { user } = useAuth()
+  const player = usePlayer(backend.game ? cls!.id : undefined)
 
   return (
     <div className="page">
@@ -37,6 +45,30 @@ export function StudentDashboard({ data }: { data: Data }) {
           </div>
         </div>
       </div>
+
+      {player && (
+        <Link to={`/class/${cls!.id}/me`} className="card" style={{ display: 'block', marginBottom: 20 }}>
+          <div className="row" style={{ gap: 16, flexWrap: 'nowrap' }}>
+            <Buddy avatar={player.avatar} size={84} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="spread">
+                <h2 style={{ margin: 0 }} translate="no">
+                  {user?.name}
+                </h2>
+                <span className="spend-chip" style={{ fontSize: '1rem' }}>
+                  ⚡ {spendable(player)} XP to spend
+                </span>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <LevelBar player={player} />
+              </div>
+              <div className="small" style={{ marginTop: 6, fontWeight: 800, color: 'var(--brand)' }}>
+                Dress up your App Buddy and see your badges →
+              </div>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {fixes.map((s) => (
         <Link key={s.id} to={`/class/${cls!.id}/lesson/${s.lessonId}`} className="alert bad" style={{ display: 'block', textDecoration: 'none', color: 'var(--ink)' }}>
